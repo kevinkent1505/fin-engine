@@ -2,22 +2,130 @@
 
 B2B financial data and analysis platform for Riil.
 
-## Current data signals
+## Architecture
+
+Fin Engine now has durable PostgreSQL persistence:
 
 ```text
-NJKB official reference
-price_kind = njkb
-
-Government auction limit
-price_kind = auction_limit
-
-Authorized marketplace crawl/feed
-price_kind = listing
+authorized crawler / official source
+             ↓
+      normalization + quality
+             ↓
+        Neon PostgreSQL
+             ↓
+      future feature engine
+             ↓
+      TypeScript public API
 ```
 
-## Authorized live marketplace crawling
+CSV remains available for local inspection, but PostgreSQL is the intended durable source of truth for scheduled cloud jobs.
 
-Fin Engine now includes permission-gated live crawlers for:
+## Data signals
+
+Fin Engine keeps economic signals distinct:
+
+```text
+listing        marketplace asking price
+njkb           official NJKB reference value
+auction_limit  government auction limit
+transaction    future confirmed transaction value
+```
+
+## Database model
+
+The first migration creates:
+
+```text
+data_sources
+    ↓
+ingestion_runs
+
+data_sources
+    ↓
+vehicle_records
+    ↓
+vehicle_observations
+         ↑
+    ingestion_runs
+```
+
+`vehicle_records` stores the stable identity of a record inside one source.
+
+For marketplace sources, that normally means the marketplace listing ID. Fin Engine does **not** yet claim cross-source entity resolution.
+
+`vehicle_observations` is append-only. If the same listing is crawled repeatedly:
+
+```text
+Oct 1   Rp218m
+Oct 2   Rp214m
+Oct 3   Rp214m
+```
+
+all observations are retained. This enables later features such as price reductions, days observed, price volatility and listing persistence.
+
+## Neon setup
+
+Create a Neon PostgreSQL project in a region close to the future Cloud Run deployment.
+
+In Neon Connection Details, use the **pooled connection string** and expose it locally as:
+
+```bash
+export DATABASE_URL='postgresql://USER:PASSWORD@...-pooler....neon.tech/neondb?sslmode=require'
+```
+
+Do not commit the real connection string.
+
+Install/update dependencies:
+
+```bash
+cd apps/analysis
+uv sync --extra dev
+```
+
+Create the schema:
+
+```bash
+uv run alembic upgrade head
+```
+
+## Persist an ingestion run
+
+You can export CSV and persist to Neon in the same run:
+
+```bash
+uv run fin-engine-data ingest \
+  --source olx_authorized_crawl \
+  --authorization-ref "your-permission-reference" \
+  --request-delay-seconds 2.0 \
+  --limit 5 \
+  --persist-db \
+  --output ../../data/generated/olx-listings-small.csv
+```
+
+For Cloud Run Jobs, the CSV can be omitted:
+
+```bash
+uv run fin-engine-data ingest \
+  --source olx_authorized_crawl \
+  --authorization-ref "your-permission-reference" \
+  --request-delay-seconds 2.0 \
+  --limit 5 \
+  --persist-db
+```
+
+The command reads `DATABASE_URL` from the environment.
+
+The JSON result contains the database run ID and counts for:
+
+```text
+created_records
+updated_records
+inserted_observations
+```
+
+## Marketplace crawler controls
+
+Authorized live crawlers:
 
 ```text
 olx_authorized_crawl
@@ -25,7 +133,7 @@ mobil123_authorized_crawl
 carmudi_authorized_crawl
 ```
 
-They are deliberately conservative:
+Current self-imposed limits:
 
 ```text
 concurrency             1
@@ -42,117 +150,44 @@ fingerprint evasion     none
 
 Every crawl requires an authorization reference.
 
-### OLX small crawl
-
-```bash
-uv run fin-engine-data ingest \
-  --source olx_authorized_crawl \
-  --authorization-ref "your-permission-reference" \
-  --start-url "https://www.olx.co.id/mobil-bekas_c198/q-toyota-avanza" \
-  --request-delay-seconds 2.0 \
-  --limit 5 \
-  --output ../../data/generated/olx-listings-small.csv
-```
-
-### Mobil123 small crawl
-
-```bash
-uv run fin-engine-data ingest \
-  --source mobil123_authorized_crawl \
-  --authorization-ref "your-permission-reference" \
-  --start-url "https://www.mobil123.com/mobil-dijual/toyota/avanza/indonesia_dki-jakarta" \
-  --request-delay-seconds 2.0 \
-  --limit 5 \
-  --output ../../data/generated/mobil123-listings-small.csv
-```
-
-### Carmudi small crawl
-
-```bash
-uv run fin-engine-data ingest \
-  --source carmudi_authorized_crawl \
-  --authorization-ref "your-permission-reference" \
-  --start-url "https://www.carmudi.co.id/mobil-bekas-dijual/indonesia" \
-  --request-delay-seconds 2.0 \
-  --limit 5 \
-  --output ../../data/generated/carmudi-listings-small.csv
-```
-
-Use a larger delay if the permission specifies a stricter rate.
-
-## Parsing approach
-
-The crawler first discovers listing detail URLs from an authorized search/result page, then fetches detail pages sequentially.
-
-It prefers structured JSON-LD fields when the marketplace publishes them and falls back to visible HTML text for:
-
-- make;
-- model/type;
-- production year;
-- asking price;
-- region;
-- mileage;
-- transmission;
-- fuel type.
-
-Seller contact details are intentionally not collected.
-
-Each record stores:
-
-```text
-price_kind = listing
-access_basis = authorized_crawl
-authorization_reference = ...
-request_delay_seconds = ...
-source_url = ...
-```
-
-## Authorized feed adapters
-
-Feed/API/export ingestion remains available:
-
-```text
-olx_authorized_feed
-mobil123_authorized_feed
-carmudi_authorized_feed
-```
-
-See `data/sample/authorized-marketplace-feed-template.csv`.
-
 ## Other sources
 
-Official NJKB:
+NJKB:
 
 ```bash
 uv run fin-engine-data ingest \
   --source kemendagri_njkb_2025 \
-  --output ../../data/generated/njkb-2025.csv
+  --persist-db
 ```
 
-Official DJP auction limits:
+DJP auction limits:
 
 ```bash
 uv run fin-engine-data ingest \
   --source djp_vehicle_auction_limits \
-  --output ../../data/generated/djp-auction-limits-small.csv \
-  --limit 5
+  --limit 5 \
+  --persist-db
 ```
 
-## Test
-
-From `apps/analysis`:
+## Testing
 
 ```bash
+cd apps/analysis
 uv sync --extra dev
 uv run pytest -v
 ```
 
+Database persistence tests run against a temporary SQLite database, so the test suite does not need Neon credentials.
+
 ## Bruno
 
-Marketplace ingestion remains CLI-only. No public HTTP contract changed, so Bruno does not need a new request in this pass.
+This change affects internal ingestion/persistence only. No public HTTP contract changed, so Bruno remains unchanged.
 
 ## Next milestone
 
-Validate each marketplace crawler with a five-record live run. Once at least one real listing source is stable, introduce PostgreSQL for repeated observations, provenance, deduplication and price history.
-
-Keep `listing`, `njkb`, `auction_limit`, and future `transaction` signals distinct.
+1. Create the Neon project and run the first migration.
+2. Persist one five-record marketplace crawl.
+3. Verify repeated crawls create one stable `vehicle_record` plus multiple `vehicle_observations`.
+4. Containerize the ingestion command as a Cloud Run Job.
+5. Store `DATABASE_URL` and marketplace authorization references in Google Secret Manager.
+6. Add Cloud Scheduler after the job is verified manually.

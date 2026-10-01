@@ -1,9 +1,12 @@
 import argparse
 import csv
+from datetime import UTC, datetime
 import json
 from pathlib import Path
 from typing import Any
 
+from riil_analysis.database.config import get_database_url
+from riil_analysis.database.persistence import persist_ingestion
 from riil_analysis.ingestion.models import (
     CanonicalVehicleObservation,
     IngestionAudit,
@@ -94,13 +97,16 @@ def write_audit(
 
 def ingest(
     source_id: str,
-    output_path: Path,
+    output_path: Path | None,
     limit: int | None,
     input_file: Path | None,
     authorization_ref: str | None,
     start_url: str | None,
     request_delay_seconds: float,
+    persist_db: bool,
 ) -> int:
+    started_at = datetime.now(UTC)
+
     adapter = get_source_adapter(source_id)
     adapter.set_fetch_limit(limit)
     adapter.set_input_path(input_file)
@@ -117,18 +123,41 @@ def ingest(
         raw_records,
         source=adapter.source_id,
     )
-    write_csv(observations, output_path)
-    audit_path = write_audit(
-        output_path,
-        report=report,
-        audit=audit,
-    )
+
+    output_value: str | None = None
+    audit_output_value: str | None = None
+
+    if output_path is not None:
+        write_csv(observations, output_path)
+        audit_path = write_audit(
+            output_path,
+            report=report,
+            audit=audit,
+        )
+        output_value = str(output_path)
+        audit_output_value = str(audit_path)
+
+    database_result: dict[str, int | str] | None = None
+    if persist_db:
+        database_result = persist_ingestion(
+            database_url=get_database_url(),
+            source_key=adapter.source_id,
+            source_url=adapter.source_url,
+            observations=observations,
+            report=report,
+            audit=audit,
+            started_at=started_at,
+            authorization_reference=authorization_ref,
+            requested_limit=limit,
+            request_delay_seconds=request_delay_seconds,
+        )
 
     print(
         json.dumps(
             {
-                "output": str(output_path),
-                "audit_output": str(audit_path),
+                "output": output_value,
+                "audit_output": audit_output_value,
+                "database": database_result,
                 "quality": report.model_dump(),
             },
             indent=2,
@@ -147,7 +176,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     ingest_parser = subparsers.add_parser(
         "ingest",
-        help="Fetch, parse, normalize and export a vehicle source.",
+        help="Fetch, normalize and persist/export a vehicle source.",
     )
     ingest_parser.add_argument(
         "--source",
@@ -156,8 +185,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ingest_parser.add_argument(
         "--output",
-        required=True,
         type=Path,
+        default=None,
+        help=(
+            "Optional CSV output path. Cloud jobs may omit this when "
+            "--persist-db is enabled."
+        ),
+    )
+    ingest_parser.add_argument(
+        "--persist-db",
+        action="store_true",
+        help="Persist the canonical records and run audit to DATABASE_URL.",
     )
     ingest_parser.add_argument(
         "--limit",
@@ -208,6 +246,9 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "ingest":
+        if args.output is None and not args.persist_db:
+            parser.error("ingest requires --output and/or --persist-db")
+
         return ingest(
             source_id=args.source,
             output_path=args.output,
@@ -216,6 +257,7 @@ def main() -> int:
             authorization_ref=args.authorization_ref,
             start_url=args.start_url,
             request_delay_seconds=args.request_delay_seconds,
+            persist_db=args.persist_db,
         )
 
     parser.error(f"Unsupported command: {args.command}")
