@@ -5,17 +5,11 @@ meta {
 }
 
 get {
-  url: {{apiBaseUrl}}/v1/vehicles/valuation
+  url: {{apiBaseUrl}}/v1/vehicles/valuation?make=Toyota&model=Avanza&year=2023&region=Jakarta
   body: none
   auth: none
 }
 
-params:query {
-  make: Toyota
-  model: Avanza
-  year: 2023
-  region: Jakarta
-}
 
 assert {
   res.status: eq 200
