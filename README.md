@@ -4,7 +4,7 @@ B2B financial data and analysis platform for Riil.
 
 ## Current data signals
 
-Fin Engine now separates three concepts instead of treating every number as a generic "price":
+Fin Engine keeps different economic signals distinct:
 
 ```text
 NJKB official reference
@@ -13,47 +13,116 @@ price_kind = njkb
 Government auction limit
 price_kind = auction_limit
 
-Retail marketplace asking price
-price_kind = listing       # not connected yet
+Authorized retail marketplace feed
+price_kind = listing
 ```
 
-This distinction is intentional. An auction limit, NJKB reference and retail asking price represent different economic signals.
+## Marketplace integrations
 
-## Architecture
+OLX, Mobil123 and Carmudi are now represented by **authorized-feed adapters**, not website crawlers.
+
+Their current published terms restrict automated crawling/scraping and/or commercial aggregation of listings and prices without permission. Fin Engine therefore only accepts their data when delivered under a documented authorized arrangement.
+
+Supported source IDs:
 
 ```text
-external source
-    ↓
-source adapter
-    ↓
-RawVehicleObservation
-    ↓
-normalization
-    ↓
-semantic quality
-    ↓
-CanonicalVehicleObservation
-    ↓
-CSV + audit JSON
+olx_authorized_feed
+mobil123_authorized_feed
+carmudi_authorized_feed
 ```
 
-The public query path remains:
+A CSV template is available at:
 
 ```text
-B2B client
-    ↓
-TypeScript / Fastify API
-    ↓
-Python / FastAPI analysis
+data/sample/authorized-marketplace-feed-template.csv
 ```
 
-PostgreSQL, queues, object storage and Kubernetes remain deferred.
+Required feed columns:
+
+```text
+listing_id
+listing_url
+make
+model
+year
+price
+region
+```
+
+Optional:
+
+```text
+variant
+mileage_km
+transmission
+fuel
+seller_type
+observed_at
+currency
+```
+
+Run an authorized OLX feed, for example:
+
+```bash
+uv run fin-engine-data ingest \
+  --source olx_authorized_feed \
+  --input-file /path/to/approved-olx-feed.csv \
+  --authorization-ref "contract-or-ticket-id" \
+  --output ../../data/generated/olx-listings.csv
+```
+
+Mobil123:
+
+```bash
+uv run fin-engine-data ingest \
+  --source mobil123_authorized_feed \
+  --input-file /path/to/approved-mobil123-feed.csv \
+  --authorization-ref "contract-or-ticket-id" \
+  --output ../../data/generated/mobil123-listings.csv
+```
+
+Carmudi:
+
+```bash
+uv run fin-engine-data ingest \
+  --source carmudi_authorized_feed \
+  --input-file /path/to/approved-carmudi-feed.csv \
+  --authorization-ref "contract-or-ticket-id" \
+  --output ../../data/generated/carmudi-listings.csv
+```
+
+Each imported record keeps:
+
+```text
+price_kind = listing
+access_basis = authorized_feed
+authorization_reference = ...
+```
+
+The ingestion contract deliberately excludes seller names and contact details.
+
+## Other ingestion sources
+
+Official NJKB:
+
+```bash
+uv run fin-engine-data ingest \
+  --source kemendagri_njkb_2025 \
+  --output ../../data/generated/njkb-2025.csv
+```
+
+Official DJP auction-limit source:
+
+```bash
+uv run fin-engine-data ingest \
+  --source djp_vehicle_auction_limits \
+  --output ../../data/generated/djp-auction-limits-small.csv \
+  --limit 5
+```
 
 ## Bruno
 
-The Git-tracked Bruno collection lives under `bruno/`.
-
-When a **public** API route or contract changes, update Bruno in the same development pass. The new auction ingestion is CLI-only, so this milestone does not change Bruno.
+Bruno remains synchronized with public HTTP APIs. These marketplace integrations are CLI ingestion sources, so no Bruno requests were added.
 
 ## Python development
 
@@ -64,80 +133,16 @@ uv sync --extra dev
 uv run pytest -v
 ```
 
-## Official NJKB ingestion
-
-```bash
-uv run fin-engine-data ingest \
-  --source kemendagri_njkb_2025 \
-  --output ../../data/generated/njkb-2025.csv
-```
-
-NJKB is stored with `price_kind = "njkb"` and receives its source-specific NJKB × weight / DP PKB semantic validation.
-
-## Official DJP vehicle-auction limits
-
-For a small development run:
-
-```bash
-uv run fin-engine-data ingest \
-  --source djp_vehicle_auction_limits \
-  --output ../../data/generated/djp-auction-limits-small.csv \
-  --limit 5
-```
-
-The limit is applied to the source adapter before detail-page retrieval, so a five-record development run does not crawl 25 detail pages and discard 20 afterwards.
-
-A successful row is classified as:
-
-```text
-price_kind = auction_limit
-```
-
-and may include metadata such as:
-
-```text
-deposit
-mileage_km
-auction_date_raw
-auction_location_raw
-announcement_title
-```
-
-The adapter intentionally ignores announcements that cannot be mapped confidently to one vehicle with a numeric auction limit.
-
-## Source-governance decision
-
-Fin Engine does not currently automate OLX, Mobil123 or Carmudi. Their published terms restrict automated scraping/crawling and/or commercial aggregation without permission.
-
-For retail asking-price data, use a licensed feed/API, partnership, written permission, or another source with compatible terms rather than bypassing those restrictions.
-
-See `docs/SOURCES.md`.
-
-## Important interpretation rule
-
-Do not silently combine:
-
-```text
-njkb
-auction_limit
-listing
-transaction
-```
-
-They are different signals.
-
-The future feature engine may compare them, for example:
-
-```text
-market_listing_to_njkb_ratio
-auction_limit_to_njkb_ratio
-auction_discount_to_market
-```
-
-but should retain provenance and signal type.
-
 ## Next milestone
 
-Validate the DJP auction source locally. If it produces stable data, then introduce the first persistence layer (PostgreSQL) because Fin Engine will have multiple real source types with different provenance and observation history.
+Once an approved marketplace feed is available and ingested, introduce PostgreSQL so Fin Engine can persist:
 
-A retail marketplace adapter should be added only when an approved source is available.
+- source provenance;
+- repeated listing observations;
+- price history;
+- NJKB reference values;
+- auction-limit observations;
+- deduplication keys;
+- feature-engine outputs.
+
+Do not silently combine `njkb`, `auction_limit`, `listing`, and future `transaction` observations; they represent different economic signals.

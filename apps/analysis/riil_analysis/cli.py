@@ -92,9 +92,18 @@ def write_audit(
     return audit_path
 
 
-def ingest(source_id: str, output_path: Path, limit: int | None) -> int:
+def ingest(
+    source_id: str,
+    output_path: Path,
+    limit: int | None,
+    input_file: Path | None,
+    authorization_ref: str | None,
+) -> int:
     adapter = get_source_adapter(source_id)
     adapter.set_fetch_limit(limit)
+    adapter.set_input_path(input_file)
+    adapter.set_authorization_reference(authorization_ref)
+
     raw_records = adapter.run()
 
     if limit is not None:
@@ -155,6 +164,22 @@ def build_parser() -> argparse.ArgumentParser:
             "this to cap network fetches."
         ),
     )
+    ingest_parser.add_argument(
+        "--input-file",
+        type=Path,
+        default=None,
+        help=(
+            "Local source file for file-backed or authorized-feed adapters."
+        ),
+    )
+    ingest_parser.add_argument(
+        "--authorization-ref",
+        default=None,
+        help=(
+            "Contract, ticket, API/feed agreement, or written-permission "
+            "reference for restricted-source authorized feeds."
+        ),
+    )
 
     return parser
 
@@ -168,6 +193,8 @@ def main() -> int:
             source_id=args.source,
             output_path=args.output,
             limit=args.limit,
+            input_file=args.input_file,
+            authorization_ref=args.authorization_ref,
         )
 
     parser.error(f"Unsupported command: {args.command}")
