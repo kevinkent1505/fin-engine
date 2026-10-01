@@ -11,16 +11,24 @@ MAKE_ALIASES = {
     "AUDI": "Audi",
     "BMW": "BMW",
     "BYD": "BYD",
+    "CHEVROLET": "Chevrolet",
     "DAIHATSU": "Daihatsu",
+    "FORD": "Ford",
+    "HINO": "Hino",
     "HONDA": "Honda",
     "HYUNDAI": "Hyundai",
     "ISUZU": "Isuzu",
+    "JEEP": "Jeep",
+    "KIA": "Kia",
     "LEXUS": "Lexus",
     "MAZDA": "Mazda",
     "MERCEDES BENZ": "Mercedes-Benz",
     "MERCEDES-BENZ": "Mercedes-Benz",
     "MITSUBISHI": "Mitsubishi",
+    "MITSHUBISHI": "Mitsubishi",
     "NISSAN": "Nissan",
+    "PEUGEOT": "Peugeot",
+    "SUBARU": "Subaru",
     "SUZUKI": "Suzuki",
     "TOYOTA": "Toyota",
     "VOLKSWAGEN": "Volkswagen",
@@ -30,6 +38,7 @@ MAKE_ALIASES = {
 # Conservative first-pass exceptions. The method is explicitly recorded
 # as heuristic and is not intended to replace a future vehicle master.
 MULTI_TOKEN_MODEL_PREFIXES = (
+    "KIJANG INNOVA",
     "LAND CRUISER",
     "GRAND LIVINA",
     "PAJERO SPORT",
@@ -142,8 +151,6 @@ def infer_model_variant(
     if not type_name:
         return None, variant, None, None
 
-    # Homologation/model codes in parentheses are source metadata, not
-    # customer-facing model/variant names.
     descriptor = re.sub(r"\s*\([^)]*\)\s*$", "", type_name).strip()
     upper = descriptor.upper()
 
@@ -155,8 +162,6 @@ def infer_model_variant(
     first, *rest = descriptor.split(" ", 1)
     remainder = rest[0] if rest else None
 
-    # This is deliberately labelled as a candidate. A future vehicle master
-    # will replace this heuristic with proper entity resolution.
     return first.title(), remainder, "heuristic_first_token_v1", 0.60
 
 
@@ -213,9 +218,6 @@ def reference_fields(
 
     expected = int(round(njkb * weight_factor))
     difference = abs(dp_pkb - expected)
-
-    # Official tables are normally exact to the rupiah/thousand. A small
-    # Rp1,000 allowance avoids false failures from displayed rounding.
     check = "pass" if difference <= 1_000 else "fail"
 
     return (

@@ -4,7 +4,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-PriceKind = Literal["listing", "transaction", "njkb", "reference"]
+PriceKind = Literal[
+    "listing",
+    "transaction",
+    "auction_limit",
+    "njkb",
+    "reference",
+]
 SemanticCheck = Literal["pass", "fail", "not_available"]
 
 

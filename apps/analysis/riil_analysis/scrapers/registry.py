@@ -1,12 +1,16 @@
 from collections.abc import Callable
 
 from riil_analysis.scrapers.base import VehicleSourceAdapter
+from riil_analysis.scrapers.sources.djp_vehicle_auction_limits import (
+    DjpVehicleAuctionLimitsAdapter,
+)
 from riil_analysis.scrapers.sources.kemendagri_njkb_2025 import (
     KemendagriNjkb2025Adapter,
 )
 
 
 SOURCE_FACTORIES: dict[str, Callable[[], VehicleSourceAdapter]] = {
+    DjpVehicleAuctionLimitsAdapter.source_id: DjpVehicleAuctionLimitsAdapter,
     KemendagriNjkb2025Adapter.source_id: KemendagriNjkb2025Adapter,
 }
 

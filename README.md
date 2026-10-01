@@ -2,27 +2,26 @@
 
 B2B financial data and analysis platform for Riil.
 
-## Current milestone
+## Current data signals
 
-The repository currently proves two architectural slices:
+Fin Engine now separates three concepts instead of treating every number as a generic "price":
 
 ```text
-PUBLIC QUERY PATH
+NJKB official reference
+price_kind = njkb
 
-B2B client
-    ↓
-TypeScript / Fastify public API
-    ↓
-Python / FastAPI analysis service
-    ↓
-sample vehicle observations
+Government auction limit
+price_kind = auction_limit
+
+Retail marketplace asking price
+price_kind = listing       # not connected yet
 ```
 
-and:
+This distinction is intentional. An auction limit, NJKB reference and retail asking price represent different economic signals.
+
+## Architecture
 
 ```text
-DATA INGESTION PATH
-
 external source
     ↓
 source adapter
@@ -31,42 +30,30 @@ RawVehicleObservation
     ↓
 normalization
     ↓
-semantic quality checks
+semantic quality
     ↓
 CanonicalVehicleObservation
     ↓
 CSV + audit JSON
 ```
 
-The ingestion path is intentionally CLI-only for now. PostgreSQL, queues, object storage and Kubernetes remain deferred.
+The public query path remains:
 
-## Language boundary
-
-**TypeScript owns API/product infrastructure:** public endpoints, validation, and later API keys, tenants, usage and billing.
-
-**Python owns analytical domain logic:** scraping, ingestion, normalization, quality, features, valuation, statistics and ML.
-
-Do not split analytical business logic across both languages.
-
-## Run the API path
-
-```bash
-docker compose up --build
+```text
+B2B client
+    ↓
+TypeScript / Fastify API
+    ↓
+Python / FastAPI analysis
 ```
 
-Try the public valuation:
-
-```bash
-curl "http://localhost:8000/v1/vehicles/valuation?make=Toyota&model=Avanza&year=2023&region=Jakarta"
-```
-
-The current public valuation still uses synthetic development comparables. NJKB reference data is deliberately kept separate.
+PostgreSQL, queues, object storage and Kubernetes remain deferred.
 
 ## Bruno
 
 The Git-tracked Bruno collection lives under `bruno/`.
 
-When a **public** API route or contract changes, update Bruno in the same development pass. Internal ingestion commands remain CLI-only and do not need Bruno requests.
+When a **public** API route or contract changes, update Bruno in the same development pass. The new auction ingestion is CLI-only, so this milestone does not change Bruno.
 
 ## Python development
 
@@ -79,114 +66,78 @@ uv run pytest -v
 
 ## Official NJKB ingestion
 
-Run:
-
 ```bash
 uv run fin-engine-data ingest \
   --source kemendagri_njkb_2025 \
   --output ../../data/generated/njkb-2025.csv
 ```
 
-The command now produces both:
+NJKB is stored with `price_kind = "njkb"` and receives its source-specific NJKB × weight / DP PKB semantic validation.
 
-```text
-data/generated/njkb-2025.csv
-data/generated/njkb-2025.audit.json
+## Official DJP vehicle-auction limits
+
+For a small development run:
+
+```bash
+uv run fin-engine-data ingest \
+  --source djp_vehicle_auction_limits \
+  --output ../../data/generated/djp-auction-limits-small.csv \
+  --limit 5
 ```
 
-The CSV contains typed semantic fields in addition to the source value:
+The limit is applied to the source adapter before detail-page retrieval, so a five-record development run does not crawl 25 detail pages and discard 20 afterwards.
+
+A successful row is classified as:
+
+```text
+price_kind = auction_limit
+```
+
+and may include metadata such as:
+
+```text
+deposit
+mileage_km
+auction_date_raw
+auction_location_raw
+announcement_title
+```
+
+The adapter intentionally ignores announcements that cannot be mapped confidently to one vehicle with a numeric auction limit.
+
+## Source-governance decision
+
+Fin Engine does not currently automate OLX, Mobil123 or Carmudi. Their published terms restrict automated scraping/crawling and/or commercial aggregation without permission.
+
+For retail asking-price data, use a licensed feed/API, partnership, written permission, or another source with compatible terms rather than bypassing those restrictions.
+
+See `docs/SOURCES.md`.
+
+## Important interpretation rule
+
+Do not silently combine:
 
 ```text
 njkb
-weight_factor
-dp_pkb
-dp_pkb_expected
-dp_pkb_difference
-dp_pkb_check
+auction_limit
+listing
+transaction
 ```
 
-For example, where the official record says:
+They are different signals.
+
+The future feature engine may compare them, for example:
 
 ```text
-NJKB          = 214,000,000
-weight        = 1.050
-DP PKB        = 224,700,000
+market_listing_to_njkb_ratio
+auction_limit_to_njkb_ratio
+auction_discount_to_market
 ```
 
-Fin Engine checks:
-
-```text
-214,000,000 × 1.050 = 224,700,000
-```
-
-and records `dp_pkb_check = pass` when the extracted relationship is consistent.
-
-Semantic mismatches are **retained but flagged**. Structural failures are rejected and written to the audit JSON.
-
-The audit file records:
-
-- duplicate source record IDs;
-- rejected record IDs and reasons;
-- semantic-failure record IDs;
-- the aggregate quality report.
-
-The quality report now includes:
-
-- total / valid / invalid records;
-- duplicate records;
-- missing prices;
-- invalid years;
-- normalization failures;
-- semantic checks passed / failed / skipped.
-
-## Vehicle type parsing
-
-NJKB exposes an official vehicle `TYPE` string rather than clean model and variant fields.
-
-Fin Engine now performs a conservative first-pass split, for example:
-
-```text
-AVANZA 1.5 VELOZ M/T (F654RM-GMSFJ)
-→ model = Avanza
-→ variant = 1.5 VELOZ M/T
-```
-
-The result is explicitly tagged in metadata as a heuristic with a confidence value. It is **not** treated as authoritative entity resolution.
-
-A future vehicle master/catalog will replace this heuristic.
-
-## Important data interpretation rule
-
-`price_kind = "njkb"` means an official tax/reference value.
-
-It must not be silently treated as:
-
-- a marketplace listing price;
-- a transaction price;
-- a repossession/recovery price.
-
-Future listing adapters will use `price_kind = "listing"`.
+but should retain provenance and signal type.
 
 ## Next milestone
 
-After rerunning the full NJKB ingestion and reviewing semantic failures, select the first permitted market-listing source.
+Validate the DJP auction source locally. If it produces stable data, then introduce the first persistence layer (PostgreSQL) because Fin Engine will have multiple real source types with different provenance and observation history.
 
-Then:
-
-```text
-market source
-   ↓
-RawVehicleObservation
-   ↓
-normalization + semantic quality
-   ↓
-first real listing dataset
-   ↓
-PostgreSQL
-   ↓
-comparable-market valuation
-   ↓
-same TypeScript public API
-```
-
-Kubernetes remains intentionally deferred.
+A retail marketplace adapter should be added only when an approved source is available.

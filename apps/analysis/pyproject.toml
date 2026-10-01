@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Internal analysis service for Fin Engine"
 requires-python = ">=3.12"
 dependencies = [
+  "beautifulsoup4>=4.13,<5",
   "fastapi>=0.118,<1",
   "httpx>=0.28,<1",
   "pdfplumber>=0.11,<1",

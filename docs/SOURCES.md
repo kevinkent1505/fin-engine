@@ -16,6 +16,16 @@ Before a source is used in a commercial B2B product, review:
 
 Do not bypass CAPTCHA, authentication, paywalls, or technical access controls.
 
+## Marketplace source review
+
+The following sources are **not enabled as automated Fin Engine adapters**:
+
+- OLX Indonesia;
+- Mobil123;
+- Carmudi.
+
+Their currently published terms restrict automated scraping/crawling and/or commercial aggregation of listing content and prices without permission. Fin Engine should only integrate those sources through an approved/licensed feed, API, partnership, or explicit written permission.
+
 ## kemendagri_njkb_2025
 
 **Source ID:** `kemendagri_njkb_2025`
@@ -29,14 +39,38 @@ https://peraturan.bpk.go.id/Details/321612/permendagri-no-7-tahun-2025
 
 **Acquisition:** Official PDF exposed through JDIH BPK.
 
-**Data used:** vehicle make, official type, production year, NJKB, weight and DP PKB where present.
+**Classification:** `price_kind = "njkb"`
 
-**Classification:** official reference value.
+**Important limitation:** NJKB is an official tax/reference value. It is not a live marketplace listing price or confirmed transaction price.
 
-**Important limitation:** NJKB is not a live marketplace listing price or confirmed transaction price. Downstream code keeps `price_kind = "njkb"` so it cannot silently become market-listing evidence.
+## djp_vehicle_auction_limits
 
-This is the first integration because it is an official public reference document and is useful for testing the ingestion pipeline against real vehicle-value records. Commercial product use should still undergo the project's source/legal review rather than assuming all public web content has unrestricted reuse rights.
+**Source ID:** `djp_vehicle_auction_limits`
+
+**Publisher:** Direktorat Jenderal Pajak, Kementerian Keuangan Republik Indonesia
+
+**Discovery page:**  
+https://www.pajak.go.id/info-lelang-page/
+
+**Acquisition:** low-frequency retrieval of public official auction announcements that clearly identify a single vehicle and publish a numeric auction limit.
+
+**Classification:** `price_kind = "auction_limit"`
+
+**Fields captured where available:**
+
+- make and vehicle descriptor;
+- production year;
+- auction limit;
+- deposit;
+- mileage;
+- auction date text;
+- auction location text;
+- announcement URL and title.
+
+**Important limitation:** the auction limit is a reserve/floor-style auction signal. It is neither a retail asking price nor the final transaction price. It may be useful for recovery/downside analysis, but it must not be silently treated as a marketplace comparable.
+
+The first implementation deliberately caps network requests during development and skips announcements that cannot be mapped to a single vehicle with a make, year, type and numeric auction limit.
 
 ## Future market-listing sources
 
-Marketplace adapters should not be added until their automated-access and commercial-reuse conditions have been reviewed. When added, they should emit `price_kind = "listing"` and preserve source-specific provenance.
+The preferred path for commercial marketplace data is an approved/licensed API, feed, partnership, or source with clearly compatible automated-access and reuse terms. Such adapters should emit `price_kind = "listing"` and preserve source-specific provenance.

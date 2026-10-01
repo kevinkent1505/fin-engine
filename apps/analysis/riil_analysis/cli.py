@@ -94,6 +94,7 @@ def write_audit(
 
 def ingest(source_id: str, output_path: Path, limit: int | None) -> int:
     adapter = get_source_adapter(source_id)
+    adapter.set_fetch_limit(limit)
     raw_records = adapter.run()
 
     if limit is not None:
@@ -149,7 +150,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit",
         type=int,
         default=None,
-        help="Optional development limit applied after parsing.",
+        help=(
+            "Optional development limit. Multi-request adapters also use "
+            "this to cap network fetches."
+        ),
     )
 
     return parser
