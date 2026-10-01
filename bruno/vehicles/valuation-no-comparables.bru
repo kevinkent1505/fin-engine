@@ -1,0 +1,23 @@
+meta {
+  name: Vehicle Valuation - No Comparables
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{apiBaseUrl}}/v1/vehicles/valuation
+  body: none
+  auth: none
+}
+
+params:query {
+  make: Toyota
+  model: Avanza
+  year: 1999
+  region: Jakarta
+}
+
+assert {
+  res.status: eq 404
+  res.body.error: eq no_comparables
+}
