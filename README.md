@@ -2,11 +2,13 @@
 
 B2B financial data and analysis platform for Riil.
 
-## Milestone 0
+## Current milestone
 
-The first version proves one cross-language path:
+The repository now has two working architectural slices:
 
 ```text
+PUBLIC QUERY PATH
+
 B2B client
     ↓
 TypeScript / Fastify public API
@@ -16,15 +18,31 @@ Python / FastAPI analysis service
 sample vehicle observations
 ```
 
-It intentionally does **not** include a scraper, database, queue, Redis, object storage, machine learning, or Kubernetes yet.
+and:
 
-The first goal is to prove that a public API can ask the Python analysis engine for a traceable vehicle market valuation.
+```text
+DATA INGESTION PATH
+
+external source
+    ↓
+source adapter
+    ↓
+RawVehicleObservation
+    ↓
+normalization + quality checks
+    ↓
+CanonicalVehicleObservation
+    ↓
+CSV export for inspection
+```
+
+The ingestion path is intentionally CLI-only for now. PostgreSQL, queues, object storage and Kubernetes remain deferred.
 
 ## Language boundary
 
 **TypeScript owns API/product infrastructure:** public endpoints, validation, and later API keys, tenants, usage and billing.
 
-**Python owns analytical domain logic:** future scraping, normalization, quality, features, valuation, statistics and ML.
+**Python owns analytical domain logic:** scraping, ingestion, normalization, quality, features, valuation, statistics and ML.
 
 Do not split analytical business logic across both languages.
 
@@ -34,15 +52,23 @@ Do not split analytical business logic across both languages.
 fin-engine/
 ├── apps/
 │   ├── api/                  # TypeScript / Fastify
-│   └── analysis/             # Python / FastAPI + Polars
+│   └── analysis/
+│       └── riil_analysis/
+│           ├── ingestion/
+│           ├── normalization/
+│           ├── scrapers/
+│           └── valuation.py
+├── bruno/                    # Git-tracked public API requests
 ├── contracts/                # language-neutral public contracts
 ├── data/
-│   └── sample/               # synthetic development data
-├── docker-compose.yml
-└── README.md
+│   ├── sample/               # synthetic development data
+│   └── generated/            # local generated ingestion outputs; ignored by Git
+├── docs/
+│   └── SOURCES.md
+└── docker-compose.yml
 ```
 
-## Run
+## Run the API path
 
 Requirement: Docker Desktop or another Docker Compose-compatible runtime.
 
@@ -103,9 +129,9 @@ The local environment uses:
 apiBaseUrl = http://localhost:8000
 ```
 
-**Development rule:** when a public API route or contract is added or changed, update the corresponding
-Bruno request and assertions in the same development pass. This keeps the executable API examples
-versioned with the implementation.
+**Development rule:** when a public API route or contract is added or changed, update the corresponding Bruno request and assertions in the same development pass.
+
+Internal batch/ingestion commands do not get Bruno requests unless they become public HTTP APIs.
 
 ## Python development
 
@@ -118,14 +144,42 @@ export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
 uv run uvicorn riil_analysis.main:app --reload --port 8001
 ```
 
-## TypeScript development
+## First real source: official 2025 NJKB reference
 
-Run the Python service on port 8001, then from the repository root:
+The first external adapter reads the official vehicle-value appendix in Permendagri No. 7 Tahun 2025 through JDIH BPK.
+
+Run it from `apps/analysis`:
 
 ```bash
-yarn
-yarn dev:api
+uv run fin-engine-data ingest \
+  --source kemendagri_njkb_2025 \
+  --output ../../data/generated/njkb-2025.csv
 ```
+
+For a small development output:
+
+```bash
+uv run fin-engine-data ingest \
+  --source kemendagri_njkb_2025 \
+  --output ../../data/generated/njkb-2025-small.csv \
+  --limit 50
+```
+
+The command prints a quality report containing:
+
+- total records;
+- valid records;
+- invalid records;
+- duplicates;
+- missing prices;
+- invalid years;
+- normalization failures.
+
+The generated CSV is ignored by Git.
+
+**Important:** NJKB is an official tax/reference value, not a live listing or confirmed transaction price. The ingestion contract records it as `price_kind = "njkb"`. It must not be silently mixed into `comparable_market_v1`, which currently uses synthetic listing-style development data.
+
+See `docs/SOURCES.md` for provenance and source policy.
 
 ## Current valuation method
 
@@ -143,22 +197,24 @@ The sample CSV is **synthetic development data**, not observed market data and n
 
 ## Next milestone
 
-After this path runs reliably, add **one permitted vehicle source**:
+Run and inspect the official-source ingestion locally, then select the first market-listing source whose automated-access and commercial-reuse conditions are acceptable.
+
+After one real listing adapter is reliable:
 
 ```text
-one source
+market source
    ↓
-scraper adapter
+RawVehicleObservation
    ↓
-raw observations
+normalization + quality
    ↓
-normalization
+PostgreSQL
    ↓
-same Python valuation engine
+comparable-market valuation
    ↓
-same TypeScript public API
+same public TypeScript API
 ```
 
-Only after that should PostgreSQL replace the CSV.
+PostgreSQL should be introduced only after the first market source gives us real schema requirements.
 
-Kubernetes is intentionally deferred. Container boundaries keep the services independently deployable later without making Kubernetes a prerequisite for the MVP.
+Kubernetes remains intentionally deferred. Container boundaries keep services independently deployable later without making Kubernetes a prerequisite for the MVP.
