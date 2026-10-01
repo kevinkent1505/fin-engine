@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fin-engine.riil.local/contracts/vehicle-valuation.schema.json",
+  "title": "Vehicle Valuation API Response",
+  "type": "object",
+  "required": ["request_id", "data"],
+  "properties": {
+    "request_id": {"type": "string"},
+    "data": {
+      "type": "object",
+      "required": ["vehicle", "region", "valuation", "sample_size", "method"],
+      "properties": {
+        "vehicle": {
+          "type": "object",
+          "required": ["make", "model", "year"],
+          "properties": {
+            "make": {"type": "string"},
+            "model": {"type": "string"},
+            "year": {"type": "integer"}
+          },
+          "additionalProperties": false
+        },
+        "region": {"type": "string"},
+        "valuation": {
+          "type": "object",
+          "required": ["estimate", "low", "high"],
+          "properties": {
+            "estimate": {"type": "integer", "minimum": 0},
+            "low": {"type": "integer", "minimum": 0},
+            "high": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": false
+        },
+        "sample_size": {"type": "integer", "minimum": 1},
+        "method": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

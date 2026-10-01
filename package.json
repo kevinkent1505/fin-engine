@@ -1,0 +1,11 @@
+{
+  "name": "fin-engine",
+  "private": true,
+  "packageManager": "yarn@1.22.22",
+  "workspaces": ["apps/api"],
+  "scripts": {
+    "dev:api": "yarn workspace @fin-engine/api dev",
+    "build:api": "yarn workspace @fin-engine/api build",
+    "typecheck:api": "yarn workspace @fin-engine/api typecheck"
+  }
+}

@@ -1,0 +1,26 @@
+services:
+  api:
+    build:
+      context: ./apps/api
+    environment:
+      PORT: "8000"
+      HOST: "0.0.0.0"
+      ANALYSIS_BASE_URL: "http://analysis:8001"
+    ports:
+      - "8000:8000"
+    depends_on:
+      analysis:
+        condition: service_healthy
+
+  analysis:
+    build:
+      context: ./apps/analysis
+    environment:
+      VEHICLE_DATA_PATH: "/data/vehicles.csv"
+    volumes:
+      - ./data/sample/vehicles.csv:/data/vehicles.csv:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
