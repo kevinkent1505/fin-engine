@@ -84,6 +84,29 @@ Expected analytical result inside the public response:
 
 The TypeScript API adds a unique `request_id`.
 
+## Bruno API collection
+
+The repository includes a Git-tracked Bruno collection under `bruno/`.
+
+Open that directory in Bruno and select the `local` environment.
+
+Current requests:
+
+- API health;
+- successful vehicle valuation;
+- no-comparables response;
+- invalid-request response.
+
+The local environment uses:
+
+```text
+apiBaseUrl = http://localhost:8000
+```
+
+**Development rule:** when a public API route or contract is added or changed, update the corresponding
+Bruno request and assertions in the same development pass. This keeps the executable API examples
+versioned with the implementation.
+
 ## Python development
 
 From `apps/analysis`:
