@@ -1,0 +1,23 @@
+meta {
+  name: Vehicle Valuation - Invalid Request
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{apiBaseUrl}}/v1/vehicles/valuation
+  body: none
+  auth: none
+}
+
+params:query {
+  make: Toyota
+  model: Avanza
+  year: abc
+  region: Jakarta
+}
+
+assert {
+  res.status: eq 400
+  res.body.error: eq invalid_request
+}
