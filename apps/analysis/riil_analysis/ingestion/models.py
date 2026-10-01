@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 
 PriceKind = Literal["listing", "transaction", "njkb", "reference"]
+SemanticCheck = Literal["pass", "fail", "not_available"]
 
 
 class RawVehicleObservation(BaseModel):
@@ -44,7 +45,26 @@ class CanonicalVehicleObservation(BaseModel):
     price_kind: PriceKind
     currency: str
     category: str | None = None
+
+    njkb: int | None = None
+    weight_factor: float | None = None
+    dp_pkb: int | None = None
+    dp_pkb_expected: int | None = None
+    dp_pkb_difference: int | None = None
+    dp_pkb_check: SemanticCheck = "not_available"
+
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RejectedRecord(BaseModel):
+    source_record_id: str
+    reason: str
+
+
+class IngestionAudit(BaseModel):
+    duplicate_record_ids: list[str] = Field(default_factory=list)
+    rejected_records: list[RejectedRecord] = Field(default_factory=list)
+    semantic_failure_record_ids: list[str] = Field(default_factory=list)
 
 
 class IngestionQualityReport(BaseModel):
@@ -56,3 +76,8 @@ class IngestionQualityReport(BaseModel):
     missing_price_records: int = 0
     invalid_year_records: int = 0
     normalization_failures: int = 0
+
+    semantic_checks_total: int = 0
+    semantic_checks_passed: int = 0
+    semantic_checks_failed: int = 0
+    semantic_checks_skipped: int = 0

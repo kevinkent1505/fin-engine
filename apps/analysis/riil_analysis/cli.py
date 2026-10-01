@@ -4,7 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from riil_analysis.ingestion.models import CanonicalVehicleObservation
+from riil_analysis.ingestion.models import (
+    CanonicalVehicleObservation,
+    IngestionAudit,
+    IngestionQualityReport,
+)
 from riil_analysis.ingestion.pipeline import normalize_records
 from riil_analysis.scrapers.registry import (
     SOURCE_FACTORIES,
@@ -27,6 +31,12 @@ CSV_FIELDS = [
     "price_kind",
     "currency",
     "category",
+    "njkb",
+    "weight_factor",
+    "dp_pkb",
+    "dp_pkb_expected",
+    "dp_pkb_difference",
+    "dp_pkb_check",
     "metadata",
 ]
 
@@ -60,6 +70,28 @@ def write_csv(
             writer.writerow(observation_row(observation))
 
 
+def write_audit(
+    output_path: Path,
+    *,
+    report: IngestionQualityReport,
+    audit: IngestionAudit,
+) -> Path:
+    audit_path = output_path.with_suffix(".audit.json")
+    audit_path.write_text(
+        json.dumps(
+            {
+                "quality": report.model_dump(),
+                "audit": audit.model_dump(),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return audit_path
+
+
 def ingest(source_id: str, output_path: Path, limit: int | None) -> int:
     adapter = get_source_adapter(source_id)
     raw_records = adapter.run()
@@ -67,16 +99,22 @@ def ingest(source_id: str, output_path: Path, limit: int | None) -> int:
     if limit is not None:
         raw_records = raw_records[:limit]
 
-    observations, report = normalize_records(
+    observations, report, audit = normalize_records(
         raw_records,
         source=adapter.source_id,
     )
     write_csv(observations, output_path)
+    audit_path = write_audit(
+        output_path,
+        report=report,
+        audit=audit,
+    )
 
     print(
         json.dumps(
             {
                 "output": str(output_path),
+                "audit_output": str(audit_path),
                 "quality": report.model_dump(),
             },
             indent=2,

@@ -4,7 +4,7 @@ B2B financial data and analysis platform for Riil.
 
 ## Current milestone
 
-The repository now has two working architectural slices:
+The repository currently proves two architectural slices:
 
 ```text
 PUBLIC QUERY PATH
@@ -29,11 +29,13 @@ source adapter
     ↓
 RawVehicleObservation
     ↓
-normalization + quality checks
+normalization
+    ↓
+semantic quality checks
     ↓
 CanonicalVehicleObservation
     ↓
-CSV export for inspection
+CSV + audit JSON
 ```
 
 The ingestion path is intentionally CLI-only for now. PostgreSQL, queues, object storage and Kubernetes remain deferred.
@@ -46,92 +48,25 @@ The ingestion path is intentionally CLI-only for now. PostgreSQL, queues, object
 
 Do not split analytical business logic across both languages.
 
-## Structure
-
-```text
-fin-engine/
-├── apps/
-│   ├── api/                  # TypeScript / Fastify
-│   └── analysis/
-│       └── riil_analysis/
-│           ├── ingestion/
-│           ├── normalization/
-│           ├── scrapers/
-│           └── valuation.py
-├── bruno/                    # Git-tracked public API requests
-├── contracts/                # language-neutral public contracts
-├── data/
-│   ├── sample/               # synthetic development data
-│   └── generated/            # local generated ingestion outputs; ignored by Git
-├── docs/
-│   └── SOURCES.md
-└── docker-compose.yml
-```
-
 ## Run the API path
-
-Requirement: Docker Desktop or another Docker Compose-compatible runtime.
 
 ```bash
 docker compose up --build
 ```
 
-Public API:
-
-```text
-http://localhost:8000
-```
-
-Try the first valuation:
+Try the public valuation:
 
 ```bash
 curl "http://localhost:8000/v1/vehicles/valuation?make=Toyota&model=Avanza&year=2023&region=Jakarta"
 ```
 
-Expected analytical result inside the public response:
+The current public valuation still uses synthetic development comparables. NJKB reference data is deliberately kept separate.
 
-```json
-{
-  "vehicle": {
-    "make": "Toyota",
-    "model": "Avanza",
-    "year": 2023
-  },
-  "region": "Jakarta",
-  "valuation": {
-    "estimate": 218000000,
-    "low": 202000000,
-    "high": 236000000
-  },
-  "sample_size": 13,
-  "method": "comparable_market_v1"
-}
-```
+## Bruno
 
-The TypeScript API adds a unique `request_id`.
+The Git-tracked Bruno collection lives under `bruno/`.
 
-## Bruno API collection
-
-The repository includes a Git-tracked Bruno collection under `bruno/`.
-
-Open that directory in Bruno and select the `local` environment.
-
-Current requests:
-
-- API health;
-- successful vehicle valuation;
-- no-comparables response;
-- invalid-request response.
-
-The local environment uses:
-
-```text
-apiBaseUrl = http://localhost:8000
-```
-
-**Development rule:** when a public API route or contract is added or changed, update the corresponding Bruno request and assertions in the same development pass.
-
-Internal batch/ingestion commands do not get Bruno requests unless they become public HTTP APIs.
+When a **public** API route or contract changes, update Bruno in the same development pass. Internal ingestion commands remain CLI-only and do not need Bruno requests.
 
 ## Python development
 
@@ -139,16 +74,12 @@ From `apps/analysis`:
 
 ```bash
 uv sync --extra dev
-uv run pytest
-export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
-uv run uvicorn riil_analysis.main:app --reload --port 8001
+uv run pytest -v
 ```
 
-## First real source: official 2025 NJKB reference
+## Official NJKB ingestion
 
-The first external adapter reads the official vehicle-value appendix in Permendagri No. 7 Tahun 2025 through JDIH BPK.
-
-Run it from `apps/analysis`:
+Run:
 
 ```bash
 uv run fin-engine-data ingest \
@@ -156,65 +87,106 @@ uv run fin-engine-data ingest \
   --output ../../data/generated/njkb-2025.csv
 ```
 
-For a small development output:
+The command now produces both:
 
-```bash
-uv run fin-engine-data ingest \
-  --source kemendagri_njkb_2025 \
-  --output ../../data/generated/njkb-2025-small.csv \
-  --limit 50
+```text
+data/generated/njkb-2025.csv
+data/generated/njkb-2025.audit.json
 ```
 
-The command prints a quality report containing:
+The CSV contains typed semantic fields in addition to the source value:
 
-- total records;
-- valid records;
-- invalid records;
-- duplicates;
+```text
+njkb
+weight_factor
+dp_pkb
+dp_pkb_expected
+dp_pkb_difference
+dp_pkb_check
+```
+
+For example, where the official record says:
+
+```text
+NJKB          = 214,000,000
+weight        = 1.050
+DP PKB        = 224,700,000
+```
+
+Fin Engine checks:
+
+```text
+214,000,000 × 1.050 = 224,700,000
+```
+
+and records `dp_pkb_check = pass` when the extracted relationship is consistent.
+
+Semantic mismatches are **retained but flagged**. Structural failures are rejected and written to the audit JSON.
+
+The audit file records:
+
+- duplicate source record IDs;
+- rejected record IDs and reasons;
+- semantic-failure record IDs;
+- the aggregate quality report.
+
+The quality report now includes:
+
+- total / valid / invalid records;
+- duplicate records;
 - missing prices;
 - invalid years;
-- normalization failures.
+- normalization failures;
+- semantic checks passed / failed / skipped.
 
-The generated CSV is ignored by Git.
+## Vehicle type parsing
 
-**Important:** NJKB is an official tax/reference value, not a live listing or confirmed transaction price. The ingestion contract records it as `price_kind = "njkb"`. It must not be silently mixed into `comparable_market_v1`, which currently uses synthetic listing-style development data.
+NJKB exposes an official vehicle `TYPE` string rather than clean model and variant fields.
 
-See `docs/SOURCES.md` for provenance and source policy.
+Fin Engine now performs a conservative first-pass split, for example:
 
-## Current valuation method
+```text
+AVANZA 1.5 VELOZ M/T (F654RM-GMSFJ)
+→ model = Avanza
+→ variant = 1.5 VELOZ M/T
+```
 
-`comparable_market_v1` deliberately does only:
+The result is explicitly tagged in metadata as a heuristic with a confidence value. It is **not** treated as authoritative entity resolution.
 
-1. match make;
-2. match model;
-3. match model year;
-4. match region;
-5. calculate median;
-6. calculate p10 / p90;
-7. return sample size.
+A future vehicle master/catalog will replace this heuristic.
 
-The sample CSV is **synthetic development data**, not observed market data and not suitable for underwriting.
+## Important data interpretation rule
+
+`price_kind = "njkb"` means an official tax/reference value.
+
+It must not be silently treated as:
+
+- a marketplace listing price;
+- a transaction price;
+- a repossession/recovery price.
+
+Future listing adapters will use `price_kind = "listing"`.
 
 ## Next milestone
 
-Run and inspect the official-source ingestion locally, then select the first market-listing source whose automated-access and commercial-reuse conditions are acceptable.
+After rerunning the full NJKB ingestion and reviewing semantic failures, select the first permitted market-listing source.
 
-After one real listing adapter is reliable:
+Then:
 
 ```text
 market source
    ↓
 RawVehicleObservation
    ↓
-normalization + quality
+normalization + semantic quality
+   ↓
+first real listing dataset
    ↓
 PostgreSQL
    ↓
 comparable-market valuation
    ↓
-same public TypeScript API
+same TypeScript public API
 ```
 
-PostgreSQL should be introduced only after the first market source gives us real schema requirements.
-
-Kubernetes remains intentionally deferred. Container boundaries keep services independently deployable later without making Kubernetes a prerequisite for the MVP.
+Kubernetes remains intentionally deferred.
