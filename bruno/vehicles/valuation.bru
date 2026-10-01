@@ -1,0 +1,31 @@
+meta {
+  name: Vehicle Valuation
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{apiBaseUrl}}/v1/vehicles/valuation
+  body: none
+  auth: none
+}
+
+params:query {
+  make: Toyota
+  model: Avanza
+  year: 2023
+  region: Jakarta
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.vehicle.make: eq Toyota
+  res.body.data.vehicle.model: eq Avanza
+  res.body.data.vehicle.year: eq 2023
+  res.body.data.region: eq Jakarta
+  res.body.data.valuation.estimate: eq 218000000
+  res.body.data.valuation.low: eq 202000000
+  res.body.data.valuation.high: eq 236000000
+  res.body.data.sample_size: eq 13
+  res.body.data.method: eq comparable_market_v1
+}
