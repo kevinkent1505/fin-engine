@@ -1,6 +1,11 @@
 from collections.abc import Callable
 
 from riil_analysis.scrapers.base import VehicleSourceAdapter
+from riil_analysis.scrapers.sources.authorized_marketplace_crawl import (
+    CarmudiAuthorizedCrawler,
+    Mobil123AuthorizedCrawler,
+    OlxAuthorizedCrawler,
+)
 from riil_analysis.scrapers.sources.authorized_marketplace_csv import (
     CarmudiAuthorizedFeedAdapter,
     Mobil123AuthorizedFeedAdapter,
@@ -15,10 +20,13 @@ from riil_analysis.scrapers.sources.kemendagri_njkb_2025 import (
 
 
 SOURCE_FACTORIES: dict[str, Callable[[], VehicleSourceAdapter]] = {
+    CarmudiAuthorizedCrawler.source_id: CarmudiAuthorizedCrawler,
     CarmudiAuthorizedFeedAdapter.source_id: CarmudiAuthorizedFeedAdapter,
     DjpVehicleAuctionLimitsAdapter.source_id: DjpVehicleAuctionLimitsAdapter,
     KemendagriNjkb2025Adapter.source_id: KemendagriNjkb2025Adapter,
+    Mobil123AuthorizedCrawler.source_id: Mobil123AuthorizedCrawler,
     Mobil123AuthorizedFeedAdapter.source_id: Mobil123AuthorizedFeedAdapter,
+    OlxAuthorizedCrawler.source_id: OlxAuthorizedCrawler,
     OlxAuthorizedFeedAdapter.source_id: OlxAuthorizedFeedAdapter,
 }
 

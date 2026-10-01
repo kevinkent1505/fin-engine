@@ -4,8 +4,6 @@ B2B financial data and analysis platform for Riil.
 
 ## Current data signals
 
-Fin Engine keeps different economic signals distinct:
-
 ```text
 NJKB official reference
 price_kind = njkb
@@ -13,17 +11,105 @@ price_kind = njkb
 Government auction limit
 price_kind = auction_limit
 
-Authorized retail marketplace feed
+Authorized marketplace crawl/feed
 price_kind = listing
 ```
 
-## Marketplace integrations
+## Authorized live marketplace crawling
 
-OLX, Mobil123 and Carmudi are now represented by **authorized-feed adapters**, not website crawlers.
+Fin Engine now includes permission-gated live crawlers for:
 
-Their current published terms restrict automated crawling/scraping and/or commercial aggregation of listings and prices without permission. Fin Engine therefore only accepts their data when delivered under a documented authorized arrangement.
+```text
+olx_authorized_crawl
+mobil123_authorized_crawl
+carmudi_authorized_crawl
+```
 
-Supported source IDs:
+They are deliberately conservative:
+
+```text
+concurrency             1
+default delay           2.0 sec/request
+minimum delay           1.0 sec/request
+default detail limit    10/run
+hard detail limit       50/run
+max discovery pages     5/run
+429 / 503 handling      Retry-After + backoff
+proxy rotation          none
+CAPTCHA bypass          none
+fingerprint evasion     none
+```
+
+Every crawl requires an authorization reference.
+
+### OLX small crawl
+
+```bash
+uv run fin-engine-data ingest \
+  --source olx_authorized_crawl \
+  --authorization-ref "your-permission-reference" \
+  --start-url "https://www.olx.co.id/mobil-bekas_c198/q-toyota-avanza" \
+  --request-delay-seconds 2.0 \
+  --limit 5 \
+  --output ../../data/generated/olx-listings-small.csv
+```
+
+### Mobil123 small crawl
+
+```bash
+uv run fin-engine-data ingest \
+  --source mobil123_authorized_crawl \
+  --authorization-ref "your-permission-reference" \
+  --start-url "https://www.mobil123.com/mobil-dijual/toyota/avanza/indonesia_dki-jakarta" \
+  --request-delay-seconds 2.0 \
+  --limit 5 \
+  --output ../../data/generated/mobil123-listings-small.csv
+```
+
+### Carmudi small crawl
+
+```bash
+uv run fin-engine-data ingest \
+  --source carmudi_authorized_crawl \
+  --authorization-ref "your-permission-reference" \
+  --start-url "https://www.carmudi.co.id/mobil-bekas-dijual/indonesia" \
+  --request-delay-seconds 2.0 \
+  --limit 5 \
+  --output ../../data/generated/carmudi-listings-small.csv
+```
+
+Use a larger delay if the permission specifies a stricter rate.
+
+## Parsing approach
+
+The crawler first discovers listing detail URLs from an authorized search/result page, then fetches detail pages sequentially.
+
+It prefers structured JSON-LD fields when the marketplace publishes them and falls back to visible HTML text for:
+
+- make;
+- model/type;
+- production year;
+- asking price;
+- region;
+- mileage;
+- transmission;
+- fuel type.
+
+Seller contact details are intentionally not collected.
+
+Each record stores:
+
+```text
+price_kind = listing
+access_basis = authorized_crawl
+authorization_reference = ...
+request_delay_seconds = ...
+source_url = ...
+```
+
+## Authorized feed adapters
+
+Feed/API/export ingestion remains available:
 
 ```text
 olx_authorized_feed
@@ -31,77 +117,9 @@ mobil123_authorized_feed
 carmudi_authorized_feed
 ```
 
-A CSV template is available at:
+See `data/sample/authorized-marketplace-feed-template.csv`.
 
-```text
-data/sample/authorized-marketplace-feed-template.csv
-```
-
-Required feed columns:
-
-```text
-listing_id
-listing_url
-make
-model
-year
-price
-region
-```
-
-Optional:
-
-```text
-variant
-mileage_km
-transmission
-fuel
-seller_type
-observed_at
-currency
-```
-
-Run an authorized OLX feed, for example:
-
-```bash
-uv run fin-engine-data ingest \
-  --source olx_authorized_feed \
-  --input-file /path/to/approved-olx-feed.csv \
-  --authorization-ref "contract-or-ticket-id" \
-  --output ../../data/generated/olx-listings.csv
-```
-
-Mobil123:
-
-```bash
-uv run fin-engine-data ingest \
-  --source mobil123_authorized_feed \
-  --input-file /path/to/approved-mobil123-feed.csv \
-  --authorization-ref "contract-or-ticket-id" \
-  --output ../../data/generated/mobil123-listings.csv
-```
-
-Carmudi:
-
-```bash
-uv run fin-engine-data ingest \
-  --source carmudi_authorized_feed \
-  --input-file /path/to/approved-carmudi-feed.csv \
-  --authorization-ref "contract-or-ticket-id" \
-  --output ../../data/generated/carmudi-listings.csv
-```
-
-Each imported record keeps:
-
-```text
-price_kind = listing
-access_basis = authorized_feed
-authorization_reference = ...
-```
-
-The ingestion contract deliberately excludes seller names and contact details.
-
-## Other ingestion sources
+## Other sources
 
 Official NJKB:
 
@@ -111,7 +129,7 @@ uv run fin-engine-data ingest \
   --output ../../data/generated/njkb-2025.csv
 ```
 
-Official DJP auction-limit source:
+Official DJP auction limits:
 
 ```bash
 uv run fin-engine-data ingest \
@@ -120,11 +138,7 @@ uv run fin-engine-data ingest \
   --limit 5
 ```
 
-## Bruno
-
-Bruno remains synchronized with public HTTP APIs. These marketplace integrations are CLI ingestion sources, so no Bruno requests were added.
-
-## Python development
+## Test
 
 From `apps/analysis`:
 
@@ -133,16 +147,12 @@ uv sync --extra dev
 uv run pytest -v
 ```
 
+## Bruno
+
+Marketplace ingestion remains CLI-only. No public HTTP contract changed, so Bruno does not need a new request in this pass.
+
 ## Next milestone
 
-Once an approved marketplace feed is available and ingested, introduce PostgreSQL so Fin Engine can persist:
+Validate each marketplace crawler with a five-record live run. Once at least one real listing source is stable, introduce PostgreSQL for repeated observations, provenance, deduplication and price history.
 
-- source provenance;
-- repeated listing observations;
-- price history;
-- NJKB reference values;
-- auction-limit observations;
-- deduplication keys;
-- feature-engine outputs.
-
-Do not silently combine `njkb`, `auction_limit`, `listing`, and future `transaction` observations; they represent different economic signals.
+Keep `listing`, `njkb`, `auction_limit`, and future `transaction` signals distinct.

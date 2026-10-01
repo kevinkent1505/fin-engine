@@ -4,104 +4,100 @@ Fin Engine keeps source-specific acquisition separate from normalization and ana
 
 ## Source policy
 
-Before a source is used in a commercial B2B product, review:
+Before a source is used in a commercial B2B product, record:
 
-- access terms and Terms of Service;
-- robots policy where applicable;
-- licensing and reuse rights;
-- rate limits;
-- whether the source permits automated access;
-- whether personal data is present;
-- retention and attribution requirements.
+- access terms and the permission basis;
+- licensing/reuse rights;
+- permitted request rate or crawl scope where specified;
+- retention and attribution requirements;
+- whether personal data is present.
 
 Do not bypass CAPTCHA, authentication, paywalls, or technical access controls.
 
-## Marketplace source review
+## Authorized live marketplace crawlers
 
-### OLX Indonesia
+Fin Engine supports live crawling of OLX Indonesia, Mobil123, and Carmudi **only when the operator has explicit permission**.
 
-Current published OLX terms prohibit use of robots, spiders and other automated mechanisms to access the service or monitor/copy its material, and prohibit automated scraping/data-mining except stated exceptions.
+Source IDs:
 
-**Fin Engine decision:** no live crawler is implemented.
+```text
+olx_authorized_crawl
+mobil123_authorized_crawl
+carmudi_authorized_crawl
+```
 
-Supported integration path:
+Every run requires `--authorization-ref`. This is stored in record provenance.
 
-- approved API/feed;
-- partnership export;
-- written permission;
-- other documented authorized data delivery.
+The crawler deliberately applies these self-imposed controls:
 
-Use source ID: `olx_authorized_feed`.
+- sequential requests only;
+- default 2.0 seconds between requests;
+- minimum configurable delay of 1.0 second;
+- default 10 detail pages per run;
+- hard cap of 50 detail pages per run;
+- maximum five result/index pages per run;
+- retry/backoff for HTTP 429 and 503;
+- honors `Retry-After` when supplied;
+- no proxy rotation;
+- no CAPTCHA handling;
+- no browser-fingerprint or access-control evasion.
+
+A marketplace may specify stricter limits in the actual permission. In that case, configure Fin Engine to the stricter limit.
+
+### OLX
+
+Default start page:
+
+```text
+https://www.olx.co.id/mobil-bekas_c198
+```
 
 ### Mobil123
 
-Current published Mobil123 terms prohibit spiders, robots, crawlers and automated data retrieval, and exclude commercial aggregation of displayed listings and prices without company permission.
+Default start page:
 
-**Fin Engine decision:** no live crawler is implemented.
+```text
+https://www.mobil123.com/mobil-bekas-dijual
+```
 
-Supported integration path uses source ID: `mobil123_authorized_feed`.
+### Carmudi
 
-### Carmudi Indonesia
+Default start page:
 
-Current published Carmudi terms prohibit automated retrieval/crawling and exclude commercial aggregation of displayed listings and prices without permission.
+```text
+https://www.carmudi.co.id/mobil-bekas-dijual/indonesia
+```
 
-**Fin Engine decision:** no live crawler is implemented.
-
-Supported integration path uses source ID: `carmudi_authorized_feed`.
+A narrower authorized search URL can be passed through `--start-url`.
 
 ## Authorized marketplace feed contract
 
-All three authorized marketplace adapters accept the same CSV contract:
+The existing feed adapters remain available:
 
 ```text
-listing_id
-listing_url
-make
-model
-variant
-year
-price
-region
-mileage_km
-transmission
-fuel
-seller_type
-observed_at
-currency
+olx_authorized_feed
+mobil123_authorized_feed
+carmudi_authorized_feed
 ```
 
-Required:
+These are preferred when the marketplace provides an API, export, or partner feed.
 
-```text
-listing_id
-listing_url
-make
-model
-year
-price
-region
-```
+## Data minimization
 
-The import deliberately excludes seller names, phone numbers and other personal contact fields from the canonical feed contract.
+The marketplace ingestion contract intentionally does not collect seller names, phone numbers, WhatsApp numbers, or other seller contact details.
 
-Each run must provide an authorization reference, such as a contract ID, partnership ticket, written permission reference or approved feed/API agreement. That reference is stored in each observation's provenance metadata.
+Useful non-contact vehicle attributes such as mileage, transmission, fuel type, year, region, model and price may be retained.
 
-## kemendagri_njkb_2025
+## Other sources
 
-**Source ID:** `kemendagri_njkb_2025`
+### kemendagri_njkb_2025
 
-**Publisher:** Kementerian Dalam Negeri Republik Indonesia
+Classification: `price_kind = "njkb"`.
 
-**Classification:** `price_kind = "njkb"`
+NJKB is an official tax/reference value, not a marketplace asking price or transaction price.
 
-NJKB is an official tax/reference value, not a marketplace listing or transaction price.
+### djp_vehicle_auction_limits
 
-## djp_vehicle_auction_limits
-
-**Source ID:** `djp_vehicle_auction_limits`
-
-**Publisher:** Direktorat Jenderal Pajak, Kementerian Keuangan Republik Indonesia
-
-**Classification:** `price_kind = "auction_limit"`
+Classification: `price_kind = "auction_limit"`.
 
 Auction limit is a reserve/floor-style signal, not a retail asking price or final transaction price.

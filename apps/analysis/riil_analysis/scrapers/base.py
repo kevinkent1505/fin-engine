@@ -12,6 +12,8 @@ class VehicleSourceAdapter(ABC):
         self.fetch_limit: int | None = None
         self.input_path: Path | None = None
         self.authorization_reference: str | None = None
+        self.start_url: str | None = None
+        self.request_delay_seconds: float = 2.0
 
     def set_fetch_limit(self, limit: int | None) -> None:
         """Allow multi-request adapters to cap network work during development."""
@@ -22,8 +24,20 @@ class VehicleSourceAdapter(ABC):
         self.input_path = path
 
     def set_authorization_reference(self, reference: str | None) -> None:
-        """Record the contract/ticket/reference authorizing restricted-source use."""
+        """Record the permission/contract/ticket authorizing restricted-source use."""
         self.authorization_reference = reference
+
+    def set_start_url(self, url: str | None) -> None:
+        """Override the adapter's default discovery URL."""
+        self.start_url = url
+
+    def set_request_delay_seconds(self, seconds: float) -> None:
+        """Configure a self-imposed delay between outbound requests."""
+        if seconds < 1.0:
+            raise ValueError(
+                "request delay must be at least 1.0 second for marketplace crawls"
+            )
+        self.request_delay_seconds = seconds
 
     @abstractmethod
     def fetch(self) -> bytes:

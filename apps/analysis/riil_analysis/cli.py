@@ -98,11 +98,15 @@ def ingest(
     limit: int | None,
     input_file: Path | None,
     authorization_ref: str | None,
+    start_url: str | None,
+    request_delay_seconds: float,
 ) -> int:
     adapter = get_source_adapter(source_id)
     adapter.set_fetch_limit(limit)
     adapter.set_input_path(input_file)
     adapter.set_authorization_reference(authorization_ref)
+    adapter.set_start_url(start_url)
+    adapter.set_request_delay_seconds(request_delay_seconds)
 
     raw_records = adapter.run()
 
@@ -160,24 +164,39 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help=(
-            "Optional development limit. Multi-request adapters also use "
-            "this to cap network fetches."
+            "Optional record/detail-page limit. Authorized live crawlers "
+            "default to 10 and enforce a hard maximum of 50 per run."
         ),
     )
     ingest_parser.add_argument(
         "--input-file",
         type=Path,
         default=None,
-        help=(
-            "Local source file for file-backed or authorized-feed adapters."
-        ),
+        help="Local source file for file-backed or authorized-feed adapters.",
     )
     ingest_parser.add_argument(
         "--authorization-ref",
         default=None,
         help=(
-            "Contract, ticket, API/feed agreement, or written-permission "
-            "reference for restricted-source authorized feeds."
+            "Permission, contract, ticket, API/feed agreement, or other "
+            "authorization reference for restricted-source data access."
+        ),
+    )
+    ingest_parser.add_argument(
+        "--start-url",
+        default=None,
+        help=(
+            "Optional authorized marketplace search/listing URL. The adapter "
+            "rejects URLs outside its own host."
+        ),
+    )
+    ingest_parser.add_argument(
+        "--request-delay-seconds",
+        type=float,
+        default=2.0,
+        help=(
+            "Minimum delay between outbound requests. Must be >= 1.0; "
+            "default is 2.0 seconds."
         ),
     )
 
@@ -195,6 +214,8 @@ def main() -> int:
             limit=args.limit,
             input_file=args.input_file,
             authorization_ref=args.authorization_ref,
+            start_url=args.start_url,
+            request_delay_seconds=args.request_delay_seconds,
         )
 
     parser.error(f"Unsupported command: {args.command}")
