@@ -88,6 +88,31 @@ class KemendagriNjkb2025Adapter(VehicleSourceAdapter):
 
         return " ".join(match.group(1).split())
 
+    @staticmethod
+    def _looks_like_vehicle_row(
+        *,
+        make: str,
+        year: str,
+        njkb: str,
+    ) -> bool:
+        # TH BUAT is a dedicated year column in the NJKB appendix. Requiring
+        # the whole cell to be one year prevents unrelated PDF tables such as
+        # "5 2025" from being accepted because they merely contain a year.
+        if re.fullmatch(r"(?:19|20)\d{2}", year) is None:
+            return False
+
+        # A vehicle make must contain at least one alphabetic character.
+        # This rejects numeric rows extracted from unrelated tables.
+        if re.search(r"[A-Za-z]", make) is None:
+            return False
+
+        # NJKB must contain digits and normalize to a positive amount.
+        digits = re.sub(r"[^0-9]", "", njkb)
+        if not digits or int(digits) <= 0:
+            return False
+
+        return True
+
     def _parse_table_row(
         self,
         row: list[str | None],
@@ -116,10 +141,11 @@ class KemendagriNjkb2025Adapter(VehicleSourceAdapter):
         if not (make and type_name and year and njkb):
             return None
 
-        if not re.search(r"\b(?:19|20)\d{2}\b", year):
-            return None
-
-        if not re.search(r"\d", njkb):
+        if not self._looks_like_vehicle_row(
+            make=make,
+            year=year,
+            njkb=njkb,
+        ):
             return None
 
         record_id = "-".join(

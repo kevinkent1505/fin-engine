@@ -6,6 +6,9 @@ from riil_analysis.scrapers.sources.kemendagri_njkb_2025 import (
 )
 
 
+OBSERVED_AT = datetime(2026, 10, 1, tzinfo=UTC)
+
+
 def test_official_njkb_table_row_parses_into_raw_contract() -> None:
     adapter = KemendagriNjkb2025Adapter()
 
@@ -24,7 +27,7 @@ def test_official_njkb_table_row_parses_into_raw_contract() -> None:
     result = adapter._parse_table_row(
         row,
         category="MOBIL PENUMPANG - MINIBUS",
-        observed_at=datetime(2026, 10, 1, tzinfo=UTC),
+        observed_at=OBSERVED_AT,
     )
 
     assert result is not None
@@ -51,7 +54,7 @@ def test_representative_njkb_row_passes_semantic_validation() -> None:
             "224.700.000",
         ],
         category="MOBIL PENUMPANG- MINIBUS",
-        observed_at=datetime(2026, 10, 1, tzinfo=UTC),
+        observed_at=OBSERVED_AT,
     )
 
     assert raw is not None
@@ -80,7 +83,51 @@ def test_table_header_is_ignored() -> None:
             "DP PKB",
         ],
         category="MOBIL PENUMPANG - SEDAN",
-        observed_at=datetime(2026, 10, 1, tzinfo=UTC),
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result is None
+
+
+def test_unrelated_numeric_pdf_row_with_embedded_year_is_ignored() -> None:
+    adapter = KemendagriNjkb2025Adapter()
+
+    # This shape reproduces the false-positive family that generated the
+    # suspicious audit ID "2-5 2025-3-4".
+    result = adapter._parse_table_row(
+        [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5 2025",
+            "6",
+            "7",
+            "8",
+        ],
+        category="UNRELATED TABLE",
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result is None
+
+
+def test_numeric_make_is_ignored_even_with_clean_year() -> None:
+    adapter = KemendagriNjkb2025Adapter()
+
+    result = adapter._parse_table_row(
+        [
+            "1",
+            "2",
+            "3",
+            "4",
+            "2025",
+            "100.000.000",
+            "1,000",
+            "100.000.000",
+        ],
+        category="UNRELATED TABLE",
+        observed_at=OBSERVED_AT,
     )
 
     assert result is None
