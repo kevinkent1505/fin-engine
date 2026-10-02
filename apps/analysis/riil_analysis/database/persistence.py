@@ -8,6 +8,7 @@ from riil_analysis.database.config import normalize_database_url
 from riil_analysis.database.models import (
     DataSource,
     IngestionRun,
+    RegionalVehicleStatistic,
     VehicleObservation,
     VehicleRecord,
 )
@@ -16,6 +17,7 @@ from riil_analysis.ingestion.models import (
     IngestionAudit,
     IngestionQualityReport,
 )
+from riil_analysis.regional import RegionalVehicleStatisticInput
 
 
 def persist_ingestion(
@@ -147,4 +149,89 @@ def persist_ingestion(
         "created_records": created_records,
         "updated_records": updated_records,
         "inserted_observations": inserted_observations,
+    }
+
+
+def persist_regional_vehicle_statistics(
+    *,
+    database_url: str,
+    source_key: str,
+    source_url: str,
+    observations: list[RegionalVehicleStatisticInput],
+    started_at: datetime,
+    requested_limit: int | None,
+) -> dict[str, int | str]:
+    """Persist one append-only snapshot of official regional vehicle counts."""
+    engine = create_engine(
+        normalize_database_url(database_url),
+        pool_pre_ping=True,
+    )
+    run_id = str(uuid.uuid4())
+    completed_at = datetime.now(UTC)
+
+    with Session(engine) as session:
+        source = session.get(DataSource, source_key)
+        if source is None:
+            session.add(
+                DataSource(
+                    source_key=source_key,
+                    source_url=source_url,
+                    created_at=started_at,
+                )
+            )
+        else:
+            source.source_url = source_url
+
+        session.flush()
+
+        session.add(
+            IngestionRun(
+                id=run_id,
+                source_key=source_key,
+                started_at=started_at,
+                completed_at=completed_at,
+                status="completed",
+                authorization_reference=None,
+                requested_limit=requested_limit,
+                request_delay_seconds=None,
+                quality={
+                    "source": source_key,
+                    "total_records": len(observations),
+                    "valid_records": len(observations),
+                    "invalid_records": 0,
+                },
+                audit={
+                    "dataset_type": "regional_vehicle_statistics",
+                    "append_only_snapshot": True,
+                },
+            )
+        )
+        session.flush()
+
+        for observation in observations:
+            session.add(
+                RegionalVehicleStatistic(
+                    id=str(uuid.uuid4()),
+                    source_key=source_key,
+                    ingestion_run_id=run_id,
+                    source_url=observation.source_url,
+                    observed_at=observation.observed_at,
+                    year=observation.year,
+                    region=observation.region,
+                    passenger_cars=observation.passenger_cars,
+                    buses=observation.buses,
+                    trucks=observation.trucks,
+                    motorcycles=observation.motorcycles,
+                    total=observation.total,
+                    metadata_json=observation.metadata,
+                )
+            )
+
+        session.commit()
+
+    engine.dispose()
+
+    return {
+        "run_id": run_id,
+        "inserted_statistics": len(observations),
     }
