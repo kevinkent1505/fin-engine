@@ -181,7 +181,7 @@ def test_real_listings_take_precedence_over_demo_for_same_vehicle(tmp_path) -> N
         )
         session.commit()
 
-    assert database_listing_catalog_source(database_url) == "database"
+    assert database_listing_catalog_source(database_url) == "database_mixed"
 
     result = estimate_vehicle_value_from_database(
         VehicleValuationRequest(
