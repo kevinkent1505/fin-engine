@@ -1,13 +1,13 @@
 # Architecture
 
-Fin Engine is a B2B financial-data and analysis platform. The codebase deliberately separates product/API concerns, presentation concerns and data/analytics concerns.
+Fin Engine is a B2B financial-data and analysis platform. The codebase deliberately separates public-product concerns, business presentation, and analytical/data-domain logic.
 
 ## System boundary
 
 ```text
 External data sources
         ↓
-Python source adapters
+Python source adapters / crawlers
         ↓
 RawVehicleObservation
         ↓
@@ -19,105 +19,91 @@ Neon PostgreSQL
         ↓
 Python analysis / feature engine
         ↓
-TypeScript API / dashboard data layer
-        ↓
-B2B API clients + Next.js business dashboard
+┌─────────────────────┬─────────────────────────┐
+│ TypeScript public API│ Next.js dashboard server│
+└─────────────────────┴─────────────────────────┘
+        ↓                         ↓
+ B2B API clients            business users
 ```
-
-The current public valuation path still uses a small development CSV. PostgreSQL-backed analytical queries are the next evolution, not something the current API already does.
-
-The current business dashboard is also intentionally in POC mode: it combines official public-reference data with clearly labeled illustrative market fixtures until live persisted observations are connected.
 
 ## Application ownership
 
-### TypeScript public API: control plane
+### `apps/api`: TypeScript control plane
 
-`apps/api` owns customer-facing API infrastructure:
+Owns customer-facing API behavior:
 
 - public HTTP endpoints;
 - request validation;
 - public response contracts;
-- error mapping;
+- stable error mapping;
 - request IDs;
 - later: tenants, API keys, authorization, quotas, usage, billing and webhooks.
 
-The current implementation uses Fastify and Zod.
+Fastify and Zod are used here.
 
-### Next.js dashboard: business presentation plane
+### `apps/dashboard`: business presentation plane
 
-`apps/dashboard` owns the business-facing POC experience:
+Owns:
 
 - executive overview;
 - vehicle-intelligence presentation;
-- regional market-intelligence presentation;
-- provenance / methodology presentation;
-- business-friendly charts and summaries;
-- server-side dashboard data-access boundary.
+- regional public-data context;
+- provenance/methodology presentation;
+- responsive, accessible D3 visualizations;
+- server-side analytical data adapter.
 
-The dashboard currently uses Next.js, Tailwind CSS and D3.
+The dashboard uses Next.js, React, Tailwind CSS and D3.
 
-It must not own crawler code, normalization rules, valuation formulas or underwriting decision logic.
+For the POC it calls the internal Python analysis endpoint server-side. Browser code does not receive Neon credentials or the internal analysis URL.
 
-### Python: intelligence plane
+The dashboard must not own crawler logic, SQL persistence logic, normalization rules, valuation formulas or underwriting rules.
 
-`apps/analysis` owns analytical and data-domain behavior:
+### `apps/analysis`: Python intelligence plane
+
+Owns:
 
 - source acquisition;
 - crawling and feed ingestion;
-- parsing;
-- normalization;
-- deduplication;
-- quality/audit reporting;
-- persistence;
-- valuation;
-- later: feature engineering, statistics, ML and geospatial analysis.
+- parsing and normalization;
+- data-quality/audit logic;
+- PostgreSQL persistence;
+- comparable valuation;
+- later: features, statistics, ML and geospatial analysis.
 
-The current service uses FastAPI, Pydantic and Polars. Persistence uses SQLAlchemy 2, psycopg 3 and Alembic.
-
-### Rule
-
-Do not duplicate analytical formulas or normalization rules in TypeScript/Next.js.
-
-Do not put tenant, billing or public API-product logic inside Python analytical modules.
-
-Keep the dashboard behind a data-access boundary so UI routes do not depend directly on persistence implementation details.
+FastAPI, Pydantic and Polars are used for analysis/data work. Persistence uses SQLAlchemy 2, psycopg 3 and Alembic.
 
 ## Repository layout
 
 ```text
 fin-engine/
 ├── apps/
-│   ├── api/                         # TypeScript / Fastify public API
-│   ├── dashboard/                   # Next.js business dashboard POC
-│   │   ├── app/                     # route/layout layer
-│   │   ├── components/              # generic presentation primitives
-│   │   ├── features/                # domain-specific dashboard features
-│   │   └── lib/data/                # server-side data-access boundary
-│   └── analysis/                    # Python intelligence/data service
-│       ├── migrations/              # Alembic migrations
+│   ├── api/                         # Fastify public API
+│   ├── dashboard/                   # Next.js business dashboard
+│   │   ├── app/                     # routes/layout
+│   │   ├── components/              # shell + generic UI
+│   │   ├── features/                # domain-specific visualizations
+│   │   └── lib/data/                # server-side analysis/data boundary
+│   └── analysis/                    # Python intelligence plane
+│       ├── migrations/
 │       ├── riil_analysis/
-│       │   ├── database/            # SQLAlchemy models + persistence
-│       │   ├── ingestion/           # common ingestion contracts/pipeline
-│       │   ├── normalization/       # canonicalization rules
-│       │   ├── scrapers/            # source adapters + polite HTTP client
-│       │   ├── cli.py               # fin-engine-data CLI
-│       │   ├── main.py              # internal FastAPI service
-│       │   └── valuation.py         # current comparable valuation
+│       │   ├── database/
+│       │   ├── ingestion/
+│       │   ├── normalization/
+│       │   ├── scrapers/
+│       │   ├── cli.py
+│       │   ├── main.py
+│       │   └── valuation.py
 │       └── tests/
-├── bruno/                            # executable public API examples
-├── contracts/                        # language-neutral public contracts
+├── bruno/
+├── contracts/
 ├── data/
-│   ├── sample/                       # committed synthetic/test data
-│   └── generated/                    # local generated outputs, ignored
+│   ├── sample/
+│   └── generated/
 ├── docs/
 └── docker-compose.yml
 ```
 
-See [DASHBOARD.md](./DASHBOARD.md) for the dashboard-specific structure.
-
-## Public API flow
-
-Current flow:
+## Public API valuation flow
 
 ```text
 GET /v1/vehicles/valuation
@@ -128,14 +114,30 @@ POST /internal/v1/vehicles/valuation
         ↓
 Python FastAPI
         ↓
-comparable_market_v1
-        ↓
-development CSV
+valuation source selection
 ```
 
-This is intentionally simple and proves the cross-language contract.
+When the Python process has `DATABASE_URL` configured:
 
-The TypeScript API maps analytical outcomes into stable public errors:
+```text
+Neon/PostgreSQL
+      ↓
+latest `listing` observation per vehicle_record
+      ↓
+comparable_market_db_v1
+```
+
+Without `DATABASE_URL`:
+
+```text
+data/sample/vehicles.csv
+      ↓
+comparable_market_v1
+```
+
+The public TypeScript API contract remains stable regardless of which internal source path is used.
+
+Public error mapping remains:
 
 ```text
 invalid query        → 400 invalid_request
@@ -143,34 +145,37 @@ no comparables       → 404 no_comparables
 analysis unavailable → 502 analysis_unavailable
 ```
 
+## Why valuation selects the latest listing observation
+
+Ingestion history is append-only. The same marketplace listing may therefore have many observations over time.
+
+A current valuation snapshot should not count that same listing repeatedly merely because it was crawled on multiple days. Database-backed comparable valuation therefore selects the latest `listing` observation per stable `vehicle_record` before calculating median / range statistics.
+
+This preserves history in storage while avoiding crawl-frequency bias in a current snapshot.
+
 ## Dashboard flow
 
-Current POC flow:
+Current POC path:
 
 ```text
-official public-reference fixtures
-+ illustrative business fixtures
-              ↓
+Next.js server page
+      ↓
 apps/dashboard/lib/data/index.ts
-              ↓
-Next.js server pages
-              ↓
-React + D3 presentation components
+      ↓
+apps/dashboard/lib/data/analysis.ts
+      ↓
+POST Python /internal/v1/vehicles/valuation
+      ↓
+DB-backed or development comparable valuation
 ```
 
-Target flow:
+The dashboard composes that analytical result with official public-reference context such as BPS vehicle counts and Kemendagri NJKB.
 
-```text
-Neon / internal Fin Engine queries
-              ↓
-apps/dashboard/lib/data/index.ts
-              ↓
-Next.js server pages
-              ↓
-React + D3 presentation components
-```
+If the analysis service is unreachable or has no comparables, the dashboard uses an explicit fallback fixture and visibly labels the state `Fallback POC data`.
 
-The route/page layer should not care which data source is behind `lib/data`.
+The dashboard never silently represents fallback data as observed marketplace output.
+
+See [DASHBOARD.md](./DASHBOARD.md).
 
 ## Ingestion flow
 
@@ -185,34 +190,28 @@ CanonicalVehicleObservation
     ↓
 quality + audit
     ↓
-optional CSV
+optional CSV export
     ↓
 optional PostgreSQL persistence
 ```
 
-A source adapter is responsible only for source-specific acquisition/parsing. It should not implement valuation logic.
-
-Normalization is responsible for turning source-specific values into consistent types and labels while preserving provenance.
-
-Persistence is responsible for recording source identity, run metadata, stable source records and append-only observations.
+A source adapter owns source acquisition/parsing only. It does not implement valuation logic.
 
 ## Economic signal types
 
-A core architecture rule is that not every numeric vehicle value means the same thing.
+Numeric vehicle values are not interchangeable.
 
-Current `price_kind` values:
-
-| Value | Meaning |
+| `price_kind` | Meaning |
 | --- | --- |
 | `listing` | marketplace asking price |
-| `njkb` | official Indonesian NJKB reference value |
-| `auction_limit` | published government auction limit/reserve-style value |
-| `transaction` | reserved for future confirmed transaction values |
-| `reference` | generic reference value when a source does not fit a stronger type |
+| `njkb` | official Indonesian NJKB reference |
+| `auction_limit` | published auction limit/reserve-style value |
+| `transaction` | future confirmed sale value |
+| `reference` | generic reference when no stronger type applies |
 
-Never silently merge these into one undifferentiated "market price" column in analytical logic or dashboard presentation.
+Do not collapse these into an undifferentiated `market_price` field.
 
-A future feature engine may compare signals, for example:
+Future features may compare signals while retaining their semantics, for example:
 
 ```text
 listing_to_njkb_ratio
@@ -220,26 +219,18 @@ auction_limit_to_njkb_ratio
 auction_discount_to_listing_median
 ```
 
-but provenance and signal type must remain available.
+## Source identity versus physical-vehicle identity
 
-## Source identity versus real-world vehicle identity
-
-`vehicle_records` currently identifies a record **inside a source**.
-
-Example:
+`vehicle_records` identifies one stable record inside one source:
 
 ```text
 source_key       = olx_authorized_crawl
 source_record_id = 123456789
 ```
 
-This is not yet a universal vehicle ID. Two listings for the same physical car on two marketplaces remain separate records.
-
-Cross-source entity resolution is a future capability and should not be inferred from matching make/model/year alone.
+It is not a universal physical-vehicle ID. Two marketplaces may contain the same real car as separate records until explicit entity-resolution logic exists.
 
 ## Observation history
-
-Vehicle observations are append-only by ingestion run.
 
 ```text
 vehicle_record
@@ -248,33 +239,26 @@ vehicle_record
    └── observation at T3
 ```
 
-This preserves price history and enables future features such as:
-
-- days observed;
-- price reductions;
-- relisting patterns;
-- listing persistence;
-- price volatility;
-- market liquidity proxies.
+This history supports future features such as days observed, price reductions, relisting behavior, listing persistence, volatility and liquidity proxies.
 
 ## Database boundary
 
-PostgreSQL is the durable data store. CSV is a developer/export surface.
+PostgreSQL is the durable data store. CSV is a development/export surface.
 
-The database currently contains:
+Current tables:
 
 ```text
 data_sources
- ingestion_runs
- vehicle_records
- vehicle_observations
+ingestion_runs
+vehicle_records
+vehicle_observations
 ```
 
 See [DATABASE.md](./DATABASE.md).
 
 ## Crawler execution model
 
-Marketplace crawlers are designed to be polite and sequential:
+Authorized marketplace crawlers are deliberately conservative:
 
 ```text
 concurrency             1
@@ -288,11 +272,9 @@ max discovery pages     5/run
 
 No proxy rotation, CAPTCHA bypass or access-control evasion is implemented.
 
-See [INGESTION.md](./INGESTION.md).
-
 ## Deployment direction
 
-The intended batch architecture is:
+Batch ingestion target:
 
 ```text
 Cloud Scheduler
@@ -306,43 +288,42 @@ normalization + persistence
 Neon PostgreSQL
 ```
 
-Important: the repository currently has the persistence layer, but a dedicated Cloud Run Job image/configuration has not yet been committed. Treat Cloud Run as the deployment target, not as an already-live component.
+The dashboard can be deployed independently on a Next.js-capable runtime and call the private/internal analysis service from its server environment.
 
-The dashboard deployment target can remain independent from batch ingestion. It can later be hosted on a Next.js-capable platform or Google Cloud once the product/deployment constraints are clearer.
+Cloud Run Job infrastructure remains a deployment target until committed and deployed.
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md).
+## Core design principles
 
-## Design principles
-
-1. **Provenance first.** Keep source ID, source record ID, source URL, observation time and parser metadata.
-2. **Append observations.** Do not overwrite useful history.
-3. **Separate signal semantics.** `listing`, `njkb`, `auction_limit` and `transaction` are not interchangeable.
-4. **Keep source parsing isolated.** A marketplace layout change should not force changes throughout the analytical stack.
-5. **Keep analytical logic in Python.** Public API and presentation concerns remain in TypeScript/Next.js.
-6. **Keep presentation behind a data layer.** Dashboard routes should not know persistence implementation details.
-7. **Prefer simple infrastructure until scale requires more.** PostgreSQL before ClickHouse; sequential jobs before Kafka/Kubernetes.
-8. **Version interfaces, not implementation details.** Public API and source contracts should be explicit and testable.
+1. **Provenance first.** Retain source, source record, source URL, observation time and parser metadata.
+2. **Append useful history.** Do not overwrite analytically useful observations.
+3. **Keep signal semantics distinct.** Listing, NJKB, auction and transaction evidence mean different things.
+4. **Keep analytical truth in Python.** Dashboard and public API consume domain outputs.
+5. **Keep browser code away from database credentials/internal secrets.**
+6. **Avoid crawl-frequency bias.** Current valuation uses latest observations per stable listing.
+7. **Prefer simple infrastructure until scale justifies more.** PostgreSQL before specialized analytical stores; sequential jobs before queues/Kubernetes.
+8. **Keep interfaces testable.** Public API changes require Bruno updates; internal source/parsing changes require deterministic fixtures/tests.
 
 ## Planned evolution
 
 Near-term:
 
 ```text
-Cloud Run Jobs
-→ scheduled multi-source collection
-→ PostgreSQL-backed feature queries
-→ replace dashboard POC fixtures with observed data
-→ market-comparable valuation
+scheduled Cloud Run ingestion
+→ more observed marketplace records in Neon
+→ persisted auction query layer
+→ true time-series endpoint
+→ regional marketplace aggregation
+→ dashboard search/filtering
 → API authentication and tenant layer
 ```
 
-Later, only when justified by workload:
+Later, only when justified:
 
 ```text
 object storage for raw payloads
 Redis for caching/job state
-PostGIS for geographic analysis
-ClickHouse for high-volume analytical workloads
-message queue/event streaming
+PostGIS
+ClickHouse
+message queues/event streaming
 Kubernetes
 ```
