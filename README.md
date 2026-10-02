@@ -4,6 +4,8 @@ B2B financial data and analysis platform for Riil.
 
 Fin Engine turns vehicle-market and official reference data into traceable analytical signals for future collateral intelligence, valuation and underwriting-support products.
 
+For a non-technical explanation of the product, target customers, use cases, data signals, limitations, commercial options and roadmap, see the [Business Overview](./docs/BUSINESS.md).
+
 ## Current status
 
 Implemented:
@@ -82,7 +84,7 @@ fin-engine/
 ├── data/
 │   ├── sample/                       # committed development fixtures
 │   └── generated/                    # local generated output, Git-ignored
-├── docs/                             # developer documentation
+├── docs/                             # business + developer documentation
 ├── CONTRIBUTING.md
 └── docker-compose.yml
 ```
@@ -205,10 +207,10 @@ Rule: when a public API route or contract changes, update Bruno in the same deve
 
 See [Testing](./docs/TESTING.md).
 
-## Developer documentation
+## Documentation
 
-Start with the [Developer Documentation Index](./docs/README.md).
-
+- [Business Overview](./docs/BUSINESS.md) — non-technical product, customer, use-case and commercial context
+- [Documentation Index](./docs/README.md)
 - [Local Development](./docs/DEVELOPMENT.md)
 - [Architecture](./docs/ARCHITECTURE.md)
 - [Ingestion](./docs/INGESTION.md)
@@ -226,4 +228,4 @@ Start with the [Developer Documentation Index](./docs/README.md).
 4. Do not claim cross-source physical-vehicle identity before entity resolution exists.
 5. Use Alembic for deployed schema changes.
 6. Keep live external-site calls out of normal unit tests.
-7. Keep the README concise; put detailed operational guidance in `docs/`.
+7. Keep the README concise; put detailed business and operational guidance in `docs/`.
