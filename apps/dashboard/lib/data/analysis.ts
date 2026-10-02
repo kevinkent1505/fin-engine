@@ -1,3 +1,5 @@
+import type { VehicleOption } from "@/lib/types";
+
 type AnalysisValuationResponse = {
   vehicle: {
     make: string;
@@ -14,6 +16,11 @@ type AnalysisValuationResponse = {
   method: string;
 };
 
+type AnalysisVehicleCatalogResponse = {
+  vehicles: VehicleOption[];
+  source: "database" | "development";
+};
+
 export type AnalysisValuationResult =
   | {
       status: "ok";
@@ -24,8 +31,49 @@ export type AnalysisValuationResult =
       detail: string;
     };
 
+export type AnalysisVehicleCatalogResult =
+  | {
+      status: "ok";
+      data: AnalysisVehicleCatalogResponse;
+    }
+  | {
+      status: "unavailable";
+      detail: string;
+    };
+
 const analysisBaseUrl =
   process.env.ANALYSIS_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8001";
+
+export async function requestAnalysisVehicleOptions(): Promise<AnalysisVehicleCatalogResult> {
+  try {
+    const response = await fetch(`${analysisBaseUrl}/internal/v1/vehicles/options`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(4_000),
+    });
+
+    if (!response.ok) {
+      return {
+        status: "unavailable",
+        detail: `The analysis engine returned HTTP ${response.status} while loading vehicle choices.`,
+      };
+    }
+
+    return {
+      status: "ok",
+      data: (await response.json()) as AnalysisVehicleCatalogResponse,
+    };
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? `Vehicle choices could not be loaded from the analysis engine: ${error.message}`
+        : "Vehicle choices could not be loaded from the analysis engine.";
+
+    return {
+      status: "unavailable",
+      detail,
+    };
+  }
+}
 
 export async function requestAnalysisValuation(input: {
   make: string;
@@ -50,7 +98,7 @@ export async function requestAnalysisValuation(input: {
     if (response.status === 404) {
       return {
         status: "not_found",
-        detail: "The analysis engine is reachable but has no comparable observations for the POC vehicle selection.",
+        detail: "The analysis engine is reachable but has no comparable observations for the selected vehicle.",
       };
     }
 
