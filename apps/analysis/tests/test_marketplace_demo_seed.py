@@ -32,7 +32,7 @@ def test_demo_seed_is_explicitly_synthetic() -> None:
 
     normalized = normalize_vehicle_observation(raw)
     assert normalized.price > 0
-    assert normalized.region == "DKI Jakarta"
+    assert normalized.region == "Jakarta"
 
 
 def test_demo_seed_is_registered() -> None:
