@@ -58,13 +58,13 @@ export const pocDashboardData: DashboardData = {
     ],
   },
   regionalMarket: [
-    { region: "Jawa Timur", passengerCars: 5_439_502, marketMedian: 225_000_000 },
-    { region: "Jawa Barat", passengerCars: 2_819_163, marketMedian: 228_000_000 },
-    { region: "DKI Jakarta", passengerCars: 2_272_301, marketMedian: 232_000_000 },
-    { region: "Jawa Tengah", passengerCars: 1_627_049, marketMedian: 221_000_000 },
-    { region: "Banten", passengerCars: 1_005_073, marketMedian: 229_000_000 },
-    { region: "Sumatera Utara", passengerCars: 872_015, marketMedian: 218_000_000 },
-    { region: "Bali", passengerCars: 522_639, marketMedian: 234_000_000 },
+    { region: "Jawa Timur", passengerCars: 5_439_502 },
+    { region: "Jawa Barat", passengerCars: 2_819_163 },
+    { region: "DKI Jakarta", passengerCars: 2_272_301 },
+    { region: "Jawa Tengah", passengerCars: 1_627_049 },
+    { region: "Banten", passengerCars: 1_005_073 },
+    { region: "Sumatera Utara", passengerCars: 872_015 },
+    { region: "Bali", passengerCars: 522_639 },
   ],
   sources: [
     {
