@@ -8,6 +8,7 @@ Use this directory for detailed business, developer, product, and operator docum
 | --- | --- |
 | [BUSINESS.md](./BUSINESS.md) | business overview, customer use cases, data-signal meaning, product limitations, commercial model and roadmap |
 | [DASHBOARD.md](./DASHBOARD.md) | business-dashboard structure, Next.js/Tailwind/D3 conventions, POC data policy and migration to live data |
+| [DASHBOARD_ACCESSIBILITY.md](./DASHBOARD_ACCESSIBILITY.md) | glassmorphism design rules, responsive behavior, keyboard/focus support, chart/table accessibility and verification checklist |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | local setup, environment variables, running services, common commands and troubleshooting |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | system boundaries, TypeScript/Python ownership, data flows and design principles |
 | [INGESTION.md](./INGESTION.md) | source adapters, raw/canonical contracts, crawler behavior, quality and adding new sources |
@@ -48,6 +49,7 @@ Working on the business dashboard:
 ```text
 BUSINESS.md
 DASHBOARD.md
+DASHBOARD_ACCESSIBILITY.md
 ARCHITECTURE.md
 SOURCES.md
 TESTING.md
