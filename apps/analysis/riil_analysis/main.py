@@ -3,7 +3,10 @@ import os
 from fastapi import FastAPI, HTTPException
 
 from .models import VehicleValuationRequest, VehicleValuationResponse
-from .valuation import estimate_vehicle_value
+from .valuation import (
+    estimate_vehicle_value,
+    estimate_vehicle_value_from_database,
+)
 
 app = FastAPI(title="Fin Engine Analysis", version="0.1.0")
 
@@ -20,12 +23,19 @@ def health() -> dict[str, str]:
 def vehicle_valuation(
     request: VehicleValuationRequest,
 ) -> VehicleValuationResponse:
-    data_path = os.getenv(
-        "VEHICLE_DATA_PATH",
-        "../../data/sample/vehicles.csv",
-    )
+    database_url = os.getenv("DATABASE_URL")
 
     try:
+        if database_url:
+            return estimate_vehicle_value_from_database(
+                request=request,
+                database_url=database_url,
+            )
+
+        data_path = os.getenv(
+            "VEHICLE_DATA_PATH",
+            "../../data/sample/vehicles.csv",
+        )
         return estimate_vehicle_value(request=request, data_path=data_path)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
