@@ -12,11 +12,18 @@ uv sync --extra dev
 uv run pytest -v
 ```
 
-TypeScript:
+TypeScript API:
 
 ```bash
 yarn typecheck:api
 yarn build:api
+```
+
+Business dashboard:
+
+```bash
+yarn typecheck:dashboard
+yarn build:dashboard
 ```
 
 Public HTTP behavior should also be exercised through the Git-tracked Bruno collection under `bruno/`.
@@ -44,6 +51,27 @@ The suite covers:
 - PostgreSQL URL normalization;
 - database identity/history persistence behavior.
 
+## Dashboard checks
+
+The dashboard currently relies primarily on TypeScript typechecking and production builds rather than a dedicated component-test framework.
+
+At minimum, dashboard changes should verify:
+
+```text
+✓ yarn typecheck:dashboard
+✓ yarn build:dashboard
+✓ / renders
+✓ /vehicle renders
+✓ /market renders
+✓ /methodology renders
+✓ official vs illustrative labels remain visible
+✓ no browser-side database credentials are introduced
+```
+
+When interactive filtering/search is added, introduce component/integration tests at the same time rather than relying only on build success.
+
+The dashboard data layer should remain testable independently from pages. Keep data retrieval behind `apps/dashboard/lib/data/index.ts`.
+
 ## Test layers
 
 ### 1. Pure/unit tests
@@ -58,6 +86,7 @@ semantic checks
 URL filtering
 structured-data extraction
 quality counters
+formatting / derived dashboard helpers when added
 ```
 
 These should not require network access.
@@ -103,9 +132,24 @@ When changing a public route:
 5. run TypeScript typecheck/build;
 6. manually exercise the request locally.
 
+### 5. Dashboard presentation/data-contract checks
+
+The dashboard must preserve source semantics in presentation.
+
+Do not allow:
+
+```text
+illustrative → displayed as observed
+official NJKB → labeled as market transaction
+auction_limit → labeled as sale price
+listing → labeled as confirmed market value
+```
+
+When the dashboard moves to live data, add fixtures or contract tests for the internal dashboard query responses before adding more presentation complexity.
+
 ## No live network in normal unit tests
 
-Do not make routine test execution dependent on OLX, Mobil123, Carmudi, DJP, BPK or other live external websites.
+Do not make routine test execution dependent on OLX, Mobil123, Carmudi, DJP, BPK, BPS or other live external websites.
 
 Reasons:
 
@@ -216,6 +260,17 @@ Before merging public API changes:
 [ ] local error paths tested
 ```
 
+Before merging dashboard changes:
+
+```text
+[ ] yarn typecheck:dashboard
+[ ] yarn build:dashboard
+[ ] key routes manually checked
+[ ] official / observed / illustrative labeling remains correct
+[ ] dashboard logic stays presentation-focused
+[ ] docs updated when data interpretation changes
+```
+
 ## CI direction
 
 A future CI workflow should run at minimum:
@@ -224,8 +279,8 @@ A future CI workflow should run at minimum:
 Python dependency sync
 Python pytest
 TypeScript dependency install
-TypeScript typecheck
-TypeScript build
+API typecheck + build
+Dashboard typecheck + build
 Alembic migration consistency check
 ```
 
