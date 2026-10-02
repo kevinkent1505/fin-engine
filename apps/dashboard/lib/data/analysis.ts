@@ -18,7 +18,7 @@ type AnalysisValuationResponse = {
 
 type AnalysisVehicleCatalogResponse = {
   vehicles: VehicleOption[];
-  source: "database" | "development";
+  source: "database" | "database_demo" | "database_mixed" | "development";
 };
 
 export type AnalysisValuationResult =

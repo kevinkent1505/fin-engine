@@ -44,7 +44,12 @@ export type VehicleOption = {
 
 export type VehicleCatalog = {
   options: VehicleOption[];
-  source: "database" | "development" | "fallback";
+  source:
+    | "database"
+    | "database_demo"
+    | "database_mixed"
+    | "development"
+    | "fallback";
   detail: string;
 };
 
@@ -62,7 +67,7 @@ export type VehicleSnapshot = {
 };
 
 export type AnalysisStatus = {
-  state: "database" | "development" | "fallback";
+  state: "database" | "demo" | "development" | "fallback";
   method?: string;
   label: string;
   detail: string;

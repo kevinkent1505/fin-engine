@@ -17,6 +17,9 @@ from .models import (
 )
 
 
+DEMO_LISTING_SOURCE = "marketplace_demo_seed"
+
+
 @lru_cache(maxsize=8)
 def load_vehicle_data(data_path: str) -> pl.DataFrame:
     path = Path(data_path)
@@ -76,7 +79,10 @@ def list_available_vehicles(data_path: str) -> list[VehicleOption]:
     available = (
         data.select("make", "model", "year", "region")
         .unique()
-        .sort(["make", "model", "year", "region"], descending=[False, False, True, False])
+        .sort(
+            ["make", "model", "year", "region"],
+            descending=[False, False, True, False],
+        )
     )
 
     return [
@@ -88,6 +94,37 @@ def list_available_vehicles(data_path: str) -> list[VehicleOption]:
         )
         for row in available.iter_rows(named=True)
     ]
+
+
+def database_listing_catalog_source(database_url: str) -> str:
+    """Describe whether persisted listing evidence is real, demo, or mixed."""
+    engine = create_engine(
+        normalize_database_url(database_url),
+        pool_pre_ping=True,
+    )
+
+    statement = (
+        select(VehicleRecord.source_key)
+        .join(
+            VehicleObservation,
+            VehicleObservation.vehicle_record_id == VehicleRecord.id,
+        )
+        .where(VehicleObservation.price_kind == "listing")
+        .distinct()
+    )
+
+    try:
+        with Session(engine) as session:
+            source_keys = set(session.scalars(statement).all())
+    finally:
+        engine.dispose()
+
+    if source_keys and source_keys <= {DEMO_LISTING_SOURCE}:
+        return "database_demo"
+    if DEMO_LISTING_SOURCE in source_keys:
+        return "database_mixed"
+
+    return "database"
 
 
 def list_available_vehicles_from_database(database_url: str) -> list[VehicleOption]:
@@ -174,6 +211,10 @@ def estimate_vehicle_value_from_database(
     a valuation snapshot must not overweight a listing merely because it was
     observed many times. This query therefore selects only the latest listing
     observation for each stable vehicle_record.
+
+    Synthetic POC listings never mix with real marketplace listings for the
+    same selection. If real listing sources exist for the selected vehicle,
+    they take precedence and demo records are ignored.
     """
     engine = create_engine(
         normalize_database_url(database_url),
@@ -191,7 +232,7 @@ def estimate_vehicle_value_from_database(
     )
 
     statement = (
-        select(VehicleObservation.price)
+        select(VehicleObservation.price, VehicleRecord.source_key)
         .join(
             VehicleRecord,
             VehicleRecord.id == VehicleObservation.vehicle_record_id,
@@ -216,12 +257,30 @@ def estimate_vehicle_value_from_database(
 
     try:
         with Session(engine) as session:
-            prices = [int(value) for value in session.scalars(statement).all()]
+            rows = session.execute(statement).all()
     finally:
         engine.dispose()
+
+    real_prices = [
+        int(price)
+        for price, source_key in rows
+        if source_key != DEMO_LISTING_SOURCE
+    ]
+    demo_prices = [
+        int(price)
+        for price, source_key in rows
+        if source_key == DEMO_LISTING_SOURCE
+    ]
+
+    if real_prices:
+        prices = real_prices
+        method = "comparable_market_db_v1"
+    else:
+        prices = demo_prices
+        method = "comparable_market_demo_db_v1"
 
     return _valuation_response(
         request,
         prices,
-        method="comparable_market_db_v1",
+        method=method,
     )

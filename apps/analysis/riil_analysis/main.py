@@ -8,6 +8,7 @@ from .models import (
     VehicleValuationResponse,
 )
 from .valuation import (
+    database_listing_catalog_source,
     estimate_vehicle_value,
     estimate_vehicle_value_from_database,
     list_available_vehicles,
@@ -32,7 +33,7 @@ def vehicle_options() -> VehicleCatalogResponse:
     if database_url:
         return VehicleCatalogResponse(
             vehicles=list_available_vehicles_from_database(database_url),
-            source="database",
+            source=database_listing_catalog_source(database_url),
         )
 
     data_path = os.getenv(

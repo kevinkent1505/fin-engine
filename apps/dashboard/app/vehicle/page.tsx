@@ -36,9 +36,11 @@ export default async function VehicleIntelligencePage({
   const askingHelper =
     data.analysis.state === "database"
       ? `Based on ${snapshot.sampleSize} matching marketplace listings`
-      : data.analysis.state === "development"
-        ? `Based on ${snapshot.sampleSize} matching demo comparison rows`
-        : "Illustrative default demo data";
+      : data.analysis.state === "demo"
+        ? `Based on ${snapshot.sampleSize} synthetic POC listings`
+        : data.analysis.state === "development"
+          ? `Based on ${snapshot.sampleSize} matching demo comparison rows`
+          : "Illustrative default demo data";
 
   const actualSelection = {
     make: snapshot.make,
@@ -46,6 +48,13 @@ export default async function VehicleIntelligencePage({
     year: snapshot.year,
     region: snapshot.region,
   };
+
+  const dataModeLabel =
+    data.analysis.state === "database"
+      ? "Marketplace data"
+      : data.analysis.state === "demo"
+        ? "Synthetic demo data"
+        : "Demo mode";
 
   return (
     <div className="space-y-6 sm:space-y-7">
@@ -67,7 +76,7 @@ export default async function VehicleIntelligencePage({
               {snapshot.sampleSize} listings compared
             </span>
             <span className="inline-flex min-h-9 items-center rounded-full border border-slate-400/70 bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-900 shadow-sm backdrop-blur-md">
-              {data.analysis.state === "database" ? "Marketplace data" : "Demo mode"}
+              {dataModeLabel}
             </span>
           </div>
         </div>
@@ -133,7 +142,9 @@ export default async function VehicleIntelligencePage({
               <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-700">Estimated asking price</div>
               <div className="mt-1 text-xl font-semibold text-slate-950">{formatRupiahCompact(asking.value)}</div>
               <p className="mt-1 text-xs leading-5 text-slate-700">
-                A middle-point estimate from matching listings. Sellers may ask for more or less, and the final sale price can differ.
+                {data.analysis.state === "demo"
+                  ? "A middle-point estimate from synthetic POC listings. It demonstrates the valuation workflow and is not a claim about current marketplace prices."
+                  : "A middle-point estimate from matching listings. Sellers may ask for more or less, and the final sale price can differ."}
               </p>
             </div>
 

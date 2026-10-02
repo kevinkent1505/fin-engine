@@ -3,6 +3,8 @@ import type { AnalysisStatus as AnalysisStatusModel } from "@/lib/types";
 const stateClass: Record<AnalysisStatusModel["state"], string> = {
   database:
     "border-emerald-400 bg-emerald-50 text-emerald-950",
+  demo:
+    "border-amber-400 bg-amber-50 text-amber-950",
   development:
     "border-blue-400 bg-blue-50 text-blue-950",
   fallback:
@@ -11,18 +13,21 @@ const stateClass: Record<AnalysisStatusModel["state"], string> = {
 
 const dotClass: Record<AnalysisStatusModel["state"], string> = {
   database: "bg-emerald-700",
+  demo: "bg-amber-700",
   development: "bg-blue-700",
   fallback: "bg-amber-700",
 };
 
 const connectionLabel: Record<AnalysisStatusModel["state"], string> = {
   database: "Connected",
+  demo: "Connected",
   development: "Demo mode",
   fallback: "Fallback mode",
 };
 
 const sourceLabel: Record<AnalysisStatusModel["state"], string> = {
   database: "Marketplace listings",
+  demo: "Synthetic listings",
   development: "Demo comparison data",
   fallback: "Default demo data",
 };

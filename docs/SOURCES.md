@@ -10,6 +10,7 @@ See [INGESTION.md](./INGESTION.md) for adapter contracts and [ARCHITECTURE.md](.
 | --- | --- | --- | --- | --- |
 | `kemendagri_njkb_2025` | Kemendagri / JDIH BPK | `njkb` | official PDF | implemented |
 | `djp_vehicle_auction_limits` | Direktorat Jenderal Pajak | `auction_limit` | official public auction announcements | implemented |
+| `marketplace_demo_seed` | Riil POC synthetic generator | `listing` | deterministic synthetic seed | implemented |
 | `olx_authorized_crawl` | OLX Indonesia | `listing` | permission-gated live crawl | implemented |
 | `mobil123_authorized_crawl` | Mobil123 | `listing` | permission-gated live crawl | implemented |
 | `carmudi_authorized_crawl` | Carmudi Indonesia | `listing` | permission-gated live crawl | implemented |
@@ -43,7 +44,8 @@ Do not treat these signals as interchangeable:
 
 ```text
 listing
-  asking price published by a marketplace seller/dealer
+  asking price published by a marketplace seller/dealer, or a clearly-labelled
+  synthetic asking-price observation when source = marketplace_demo_seed
 
 njkb
   official Indonesian vehicle tax/reference value
@@ -59,6 +61,38 @@ reference
 ```
 
 Analytical models may compare these signals, but must keep their origin and meaning available.
+
+## `marketplace_demo_seed`
+
+Purpose:
+
+```text
+POC demonstration only
+```
+
+This source generates deterministic synthetic marketplace-style asking-price observations for multiple makes, models and years. It exists so the business dashboard can demonstrate the complete ingestion → Neon → analysis → vehicle-selector flow before live marketplace collection is enabled.
+
+It does **not** scrape OLX, Mobil123, Carmudi or any other marketplace, and its prices must not be represented as observed market evidence.
+
+Canonical metadata includes:
+
+```text
+price_kind = listing
+synthetic = true
+access_basis = synthetic_demo
+not_real_marketplace_observation = true
+generator = marketplace_demo_v1
+```
+
+Run it with:
+
+```bash
+uv run fin-engine-data ingest \
+  --source marketplace_demo_seed \
+  --persist-db
+```
+
+The analysis service returns `comparable_market_demo_db_v1` when a selected vehicle is valued only from this source. If real persisted listing evidence exists for the same make/model/year/region, real listing sources take precedence and the synthetic rows are excluded from that valuation.
 
 ## Authorized live marketplace crawlers
 

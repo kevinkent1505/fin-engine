@@ -122,9 +122,13 @@ export function VehicleChooser({
   const sourceLabel =
     catalog.source === "database"
       ? "Marketplace choices"
-      : catalog.source === "development"
-        ? "Demo choices"
-        : "Default demo only";
+      : catalog.source === "database_demo"
+        ? "Demo marketplace choices"
+        : catalog.source === "database_mixed"
+          ? "Marketplace + demo choices"
+          : catalog.source === "development"
+            ? "Demo choices"
+            : "Default demo only";
 
   return (
     <section
