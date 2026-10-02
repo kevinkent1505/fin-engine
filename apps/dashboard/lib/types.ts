@@ -48,8 +48,16 @@ export type VehicleSnapshot = {
   lastRefresh: string;
 };
 
+export type AnalysisStatus = {
+  state: "database" | "development" | "fallback";
+  method?: string;
+  label: string;
+  detail: string;
+};
+
 export type DashboardData = {
-  mode: "poc";
+  mode: "analysis" | "fallback";
+  analysis: AnalysisStatus;
   snapshot: VehicleSnapshot;
   regionalMarket: RegionalMarketPoint[];
   sources: SourceDescriptor[];
