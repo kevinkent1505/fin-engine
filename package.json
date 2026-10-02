@@ -2,10 +2,13 @@
   "name": "fin-engine",
   "private": true,
   "packageManager": "yarn@1.22.22",
-  "workspaces": ["apps/api"],
+  "workspaces": ["apps/api", "apps/dashboard"],
   "scripts": {
     "dev:api": "yarn workspace @fin-engine/api dev",
     "build:api": "yarn workspace @fin-engine/api build",
-    "typecheck:api": "yarn workspace @fin-engine/api typecheck"
+    "typecheck:api": "yarn workspace @fin-engine/api typecheck",
+    "dev:dashboard": "yarn workspace @fin-engine/dashboard dev",
+    "build:dashboard": "yarn workspace @fin-engine/dashboard build",
+    "typecheck:dashboard": "yarn workspace @fin-engine/dashboard typecheck"
   }
 }
