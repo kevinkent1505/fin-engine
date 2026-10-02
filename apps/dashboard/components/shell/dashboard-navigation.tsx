@@ -4,10 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navigation = [
-  { href: "/", label: "Overview" },
-  { href: "/vehicle", label: "Vehicle Intelligence" },
-  { href: "/market", label: "Market Intelligence" },
-  { href: "/methodology", label: "Data & Methodology" },
+  { href: "/", label: "Overview", shortLabel: "Overview" },
+  { href: "/vehicle", label: "Vehicle Intelligence", shortLabel: "Vehicle" },
+  { href: "/market", label: "Market Intelligence", shortLabel: "Market" },
+  { href: "/methodology", label: "Data & Methodology", shortLabel: "Data" },
 ];
 
 export function DashboardNavigation({
@@ -19,7 +19,10 @@ export function DashboardNavigation({
 
   if (variant === "desktop") {
     return (
-      <nav aria-label="Primary dashboard navigation" className="space-y-1.5">
+      <nav
+        aria-label="Primary dashboard navigation"
+        className="glass-floating flex items-center gap-1 rounded-full p-1.5"
+      >
         {navigation.map((item) => {
           const active = pathname === item.href;
           return (
@@ -27,10 +30,10 @@ export function DashboardNavigation({
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`flex min-h-11 items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
+              className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-800 focus-visible:ring-offset-2 ${
                 active
-                  ? "border border-white/20 bg-white/[0.16] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]"
-                  : "border border-transparent text-slate-300 hover:border-white/10 hover:bg-white/10 hover:text-white"
+                  ? "bg-slate-950 text-white shadow-[0_8px_20px_rgba(15,23,42,0.20)]"
+                  : "text-slate-800 hover:bg-white hover:text-slate-950"
               }`}
             >
               {item.label}
@@ -44,7 +47,7 @@ export function DashboardNavigation({
   return (
     <nav
       aria-label="Primary dashboard navigation"
-      className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="glass-floating grid grid-cols-4 gap-1 rounded-[1.4rem] p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.20)]"
     >
       {navigation.map((item) => {
         const active = pathname === item.href;
@@ -53,13 +56,14 @@ export function DashboardNavigation({
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full border px-4 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2 ${
+            aria-label={item.label}
+            className={`flex min-h-12 min-w-0 items-center justify-center rounded-2xl px-2 py-2 text-center text-[11px] font-bold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-800 focus-visible:ring-offset-2 ${
               active
-                ? "border-blue-700 bg-blue-700 text-white shadow-sm"
-                : "border-white/70 bg-white/70 text-slate-700 hover:bg-white"
+                ? "bg-blue-800 text-white shadow-[0_7px_16px_rgba(30,64,175,0.28)]"
+                : "text-slate-900 hover:bg-white"
             }`}
           >
-            {item.label}
+            {item.shortLabel}
           </Link>
         );
       })}
