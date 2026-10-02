@@ -21,6 +21,17 @@ type AnalysisVehicleCatalogResponse = {
   source: "database" | "database_demo" | "database_mixed" | "development";
 };
 
+type AnalysisRegionalMarketResponse = {
+  source: string;
+  source_url: string;
+  year: number;
+  observed_at: string;
+  regions: Array<{
+    region: string;
+    passenger_cars: number;
+  }>;
+};
+
 export type AnalysisValuationResult =
   | {
       status: "ok";
@@ -35,6 +46,16 @@ export type AnalysisVehicleCatalogResult =
   | {
       status: "ok";
       data: AnalysisVehicleCatalogResponse;
+    }
+  | {
+      status: "unavailable";
+      detail: string;
+    };
+
+export type AnalysisRegionalMarketResult =
+  | {
+      status: "ok";
+      data: AnalysisRegionalMarketResponse;
     }
   | {
       status: "unavailable";
@@ -67,6 +88,37 @@ export async function requestAnalysisVehicleOptions(): Promise<AnalysisVehicleCa
       error instanceof Error
         ? `Vehicle choices could not be loaded from the analysis engine: ${error.message}`
         : "Vehicle choices could not be loaded from the analysis engine.";
+
+    return {
+      status: "unavailable",
+      detail,
+    };
+  }
+}
+
+export async function requestAnalysisRegionalMarket(): Promise<AnalysisRegionalMarketResult> {
+  try {
+    const response = await fetch(`${analysisBaseUrl}/internal/v1/regional-market`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(4_000),
+    });
+
+    if (!response.ok) {
+      return {
+        status: "unavailable",
+        detail: `The analysis engine returned HTTP ${response.status} while loading regional market data.`,
+      };
+    }
+
+    return {
+      status: "ok",
+      data: (await response.json()) as AnalysisRegionalMarketResponse,
+    };
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? `Regional market data could not be loaded from the analysis engine: ${error.message}`
+        : "Regional market data could not be loaded from the analysis engine.";
 
     return {
       status: "unavailable",
