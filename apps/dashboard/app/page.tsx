@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AnalysisStatus } from "@/components/ui/analysis-status";
 import { MetricCard } from "@/components/ui/metric-card";
 import { SourceBadge } from "@/components/ui/source-badge";
 import { RegionalMarketChart } from "@/features/market-intelligence/regional-market-chart";
@@ -15,11 +16,18 @@ export default async function OverviewPage() {
   const njkb = snapshot.values.find((item) => item.kind === "njkb")!;
   const auction = snapshot.values.find((item) => item.kind === "auction_limit")!;
 
+  const askingHelper =
+    data.analysis.state === "database"
+      ? `${snapshot.sampleSize} latest persisted marketplace comparables`
+      : data.analysis.state === "development"
+        ? `${snapshot.sampleSize} development comparable rows`
+        : `${snapshot.sampleSize} illustrative fallback observations`;
+
   const metrics = [
     {
       label: "Indicative asking median",
       value: formatRupiahCompact(asking.value),
-      helper: `${snapshot.sampleSize} illustrative marketplace observations`,
+      helper: askingHelper,
     },
     {
       label: "Official NJKB",
@@ -35,7 +43,7 @@ export default async function OverviewPage() {
     {
       label: "Auction / asking",
       value: `${(auction.value / asking.value).toFixed(2)}×`,
-      helper: "Illustrative downside signal for POC",
+      helper: "Auction signal remains illustrative in this POC",
       tone: "warning" as const,
     },
   ];
@@ -44,29 +52,24 @@ export default async function OverviewPage() {
     <div className="space-y-6 sm:space-y-7">
       <section className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
         <div className="min-w-0">
-          <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-800">
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-900">
             Executive overview
           </div>
           <h1 className="mt-2 max-w-3xl text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl md:text-4xl">
             Vehicle collateral intelligence from traceable public and market signals.
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700 md:text-base">
-            This POC demonstrates how Fin Engine can combine official references, market observations and auction signals without treating them as the same kind of value.
+            The POC now requests its primary asking-value signal from the Fin Engine Python analysis service. Official references and still-illustrative signals remain visibly separated.
           </p>
         </div>
 
-        <Link
-          href="/vehicle"
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2 sm:w-fit"
-        >
+        <Link href="/vehicle" className="action-primary w-full sm:w-fit">
           Open vehicle intelligence
           <span aria-hidden="true" className="ml-2">→</span>
         </Link>
       </section>
 
-      <aside className="rounded-2xl border border-amber-300/80 bg-amber-50/90 px-4 py-3 text-sm leading-6 text-amber-950 shadow-sm backdrop-blur-md" aria-label="POC data mode notice">
-        <strong>POC data mode:</strong> BPS regional vehicle-stock and Kemendagri NJKB values are official public references. Marketplace asking-price and auction figures on this screen are illustrative placeholders until the authorized ingestion jobs are connected to the dashboard query layer.
-      </aside>
+      <AnalysisStatus status={data.analysis} />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Executive metrics">
         {metrics.map((metric) => (
@@ -83,7 +86,7 @@ export default async function OverviewPage() {
               <h2 className="text-sm font-semibold text-slate-950">POC vehicle</h2>
               <p className="mt-1 text-xs text-slate-600">Current business-demo selection</p>
             </div>
-            <span className="inline-flex min-h-8 w-fit items-center rounded-full border border-slate-300/80 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700">
+            <span className="inline-flex min-h-8 w-fit items-center rounded-full border border-slate-400/70 bg-white/90 px-3 py-1 text-xs font-bold text-slate-900">
               {snapshot.region}
             </span>
           </div>
@@ -92,14 +95,14 @@ export default async function OverviewPage() {
             <div className="break-words text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
               {snapshot.make} {snapshot.model}
             </div>
-            <div className="mt-2 text-sm text-slate-600">
+            <div className="mt-2 text-sm text-slate-700">
               {snapshot.variant} · {snapshot.year}
             </div>
           </div>
 
-          <dl className="mt-5 grid grid-cols-1 gap-5 text-sm xs:grid-cols-2 sm:grid-cols-2">
+          <dl className="mt-5 grid grid-cols-1 gap-5 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-600">Observed range</dt>
+              <dt className="text-slate-600">Comparable range</dt>
               <dd className="mt-1 font-semibold text-slate-950">
                 {formatRupiahCompact(snapshot.observedRange[0])}–{formatRupiahCompact(snapshot.observedRange[1])}
               </dd>
@@ -113,7 +116,7 @@ export default async function OverviewPage() {
               <dd className="mt-1 font-semibold text-slate-950">NJKB 2025</dd>
             </div>
             <div>
-              <dt className="text-slate-600">Refresh status</dt>
+              <dt className="text-slate-600">Valuation source</dt>
               <dd className="mt-1 font-semibold text-slate-950">{snapshot.lastRefresh}</dd>
             </div>
           </dl>
@@ -126,8 +129,8 @@ export default async function OverviewPage() {
         <article className="glass-panel min-w-0 rounded-2xl p-4 sm:p-5">
           <div>
             <h2 className="text-sm font-semibold text-slate-950">Data provenance</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
-              Business users can see which signals are official and which are still POC placeholders.
+            <p className="mt-1 text-xs leading-5 text-slate-700">
+              Business users can see which signals are official, observed through the analysis engine, or still illustrative.
             </p>
           </div>
 
@@ -137,13 +140,13 @@ export default async function OverviewPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="break-words text-sm font-semibold text-slate-950">{source.name}</div>
-                    <div className="mt-1 text-xs text-slate-600">{source.type}</div>
+                    <div className="mt-1 text-xs text-slate-700">{source.type}</div>
                   </div>
                   <div className="shrink-0">
                     <SourceBadge confidence={source.confidence} />
                   </div>
                 </div>
-                <p className="mt-3 text-xs leading-5 text-slate-700">{source.note}</p>
+                <p className="mt-3 text-xs leading-5 text-slate-800">{source.note}</p>
               </div>
             ))}
           </div>
