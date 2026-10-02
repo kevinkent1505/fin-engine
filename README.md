@@ -13,6 +13,7 @@ Implemented:
 ```text
 ✓ TypeScript / Fastify public API
 ✓ Python / FastAPI analysis service
+✓ Next.js / Tailwind / D3 business dashboard POC
 ✓ vehicle comparable valuation development slice
 ✓ official NJKB ingestion
 ✓ official DJP auction-limit ingestion
@@ -32,6 +33,7 @@ Cloud Run Jobs
 → Secret Manager
 → manual cloud crawl validation
 → Cloud Scheduler
+→ connect persisted observations to dashboard data layer
 ```
 
 Cloud Run Job infrastructure is **not yet committed/deployed**; see [Deployment](./docs/DEPLOYMENT.md) for the target design and rollout checklist.
@@ -49,12 +51,12 @@ Neon PostgreSQL
       ↓
 Python analysis / feature engine
       ↓
-TypeScript public API
+TypeScript public API / dashboard query layer
       ↓
-B2B clients
+B2B clients + Next.js business dashboard
 ```
 
-TypeScript owns public API/product infrastructure. Python owns data acquisition, normalization, persistence and analytical domain logic.
+TypeScript owns public API/product infrastructure. Python owns data acquisition, normalization, persistence and analytical domain logic. The dashboard consumes domain outputs; it does not own analytical formulas.
 
 See [Architecture](./docs/ARCHITECTURE.md).
 
@@ -70,7 +72,7 @@ Fin Engine does not treat every vehicle value as the same type of price.
 | `transaction` | reserved for future confirmed transaction prices |
 | `reference` | generic reference signal when a stronger type does not apply |
 
-These signal types must remain distinguishable throughout ingestion, persistence and analysis.
+These signal types must remain distinguishable throughout ingestion, persistence, analysis and presentation.
 
 ## Repository layout
 
@@ -78,7 +80,8 @@ These signal types must remain distinguishable throughout ingestion, persistence
 fin-engine/
 ├── apps/
 │   ├── api/                         # TypeScript / Fastify public API
-│   └── analysis/                    # Python analysis + ingestion + DB
+│   ├── analysis/                    # Python analysis + ingestion + DB
+│   └── dashboard/                   # Next.js business dashboard POC
 ├── bruno/                            # Git-tracked public API requests
 ├── contracts/                        # language-neutral public contracts
 ├── data/
@@ -101,6 +104,24 @@ uv sync --extra dev
 ```
 
 Python 3.12 is recommended to match the current production container base.
+
+### Run the business dashboard
+
+From the repository root:
+
+```bash
+yarn dev:dashboard
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+The current dashboard is a POC. It uses official public BPS/Kemendagri references together with clearly labeled illustrative marketplace and auction signals until live persisted observations are connected.
+
+See [Business Dashboard](./docs/DASHBOARD.md).
 
 ### Run Python analysis service
 
@@ -194,11 +215,18 @@ cd apps/analysis
 uv run pytest -v
 ```
 
-TypeScript:
+TypeScript API:
 
 ```bash
 yarn typecheck:api
 yarn build:api
+```
+
+Business dashboard:
+
+```bash
+yarn typecheck:dashboard
+yarn build:dashboard
 ```
 
 The Bruno collection under `bruno/` contains executable examples/assertions for the public API.
@@ -210,6 +238,7 @@ See [Testing](./docs/TESTING.md).
 ## Documentation
 
 - [Business Overview](./docs/BUSINESS.md) — non-technical product, customer, use-case and commercial context
+- [Business Dashboard](./docs/DASHBOARD.md) — POC structure, visual/data conventions and live-data migration path
 - [Documentation Index](./docs/README.md)
 - [Local Development](./docs/DEVELOPMENT.md)
 - [Architecture](./docs/ARCHITECTURE.md)
@@ -228,4 +257,5 @@ See [Testing](./docs/TESTING.md).
 4. Do not claim cross-source physical-vehicle identity before entity resolution exists.
 5. Use Alembic for deployed schema changes.
 6. Keep live external-site calls out of normal unit tests.
-7. Keep the README concise; put detailed business and operational guidance in `docs/`.
+7. Keep dashboard pages behind a data-access boundary; do not put analytical formulas or database credentials in browser code.
+8. Keep the README concise; put detailed business and operational guidance in `docs/`.
