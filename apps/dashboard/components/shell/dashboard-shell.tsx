@@ -5,15 +5,12 @@ import { DashboardNavigation } from "@/components/shell/dashboard-navigation";
 export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen text-slate-950">
-      <a
-        href="#dashboard-main"
-        className="skip-link"
-      >
+      <a href="#dashboard-main" className="skip-link">
         Skip to main content
       </a>
 
       <div className="mx-auto grid min-h-screen w-full max-w-[1680px] lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-white/10 bg-slate-950/92 px-5 py-7 text-white shadow-2xl backdrop-blur-2xl lg:sticky lg:top-0 lg:block lg:h-screen">
+        <aside className="hidden border-r border-white/10 bg-slate-950/[0.92] px-5 py-7 text-white shadow-2xl backdrop-blur-2xl lg:sticky lg:top-0 lg:block lg:h-screen">
           <div className="mb-9">
             <div className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">
               Riil
@@ -24,7 +21,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
           <DashboardNavigation variant="desktop" />
 
-          <div className="mt-10 rounded-2xl border border-white/15 bg-white/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl">
+          <div className="mt-10 rounded-2xl border border-white/20 bg-white/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl">
             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-300">
               Data mode
             </div>
