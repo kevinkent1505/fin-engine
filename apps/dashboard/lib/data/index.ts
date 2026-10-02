@@ -34,6 +34,19 @@ function sameVehicle(a: VehicleOption, b: VehicleOption) {
   );
 }
 
+function sameMakeModel(a: VehicleOption, b: VehicleOption) {
+  return (
+    a.make.toLowerCase() === b.make.toLowerCase() &&
+    a.model.toLowerCase() === b.model.toLowerCase()
+  );
+}
+
+function similarRegion(a: string, b: string) {
+  const left = a.trim().toLowerCase();
+  const right = b.trim().toLowerCase();
+  return left === right || left.includes(right) || right.includes(left);
+}
+
 export async function getVehicleCatalog(): Promise<VehicleCatalog> {
   const result = await requestAnalysisVehicleOptions();
 
@@ -82,8 +95,24 @@ export function resolveVehicleSelection(
   const configuredDefault = options.find((option) =>
     sameVehicle(option, dashboardVehicle),
   );
+  if (configuredDefault) {
+    return configuredDefault;
+  }
 
-  return configuredDefault ?? options[0] ?? pocReferenceVehicle;
+  const closestConfiguredModel = options.find(
+    (option) =>
+      sameMakeModel(option, dashboardVehicle) &&
+      similarRegion(option.region, dashboardVehicle.region),
+  );
+  if (closestConfiguredModel) {
+    return closestConfiguredModel;
+  }
+
+  const sameConfiguredModel = options.find((option) =>
+    sameMakeModel(option, dashboardVehicle),
+  );
+
+  return sameConfiguredModel ?? options[0] ?? pocReferenceVehicle;
 }
 
 /**
@@ -146,8 +175,8 @@ export async function getDashboardData(
     confidence,
     lastUpdated: "Current dashboard request",
     note: databaseBacked
-      ? "Median and range are calculated from the latest persisted listing observation per stable marketplace record, avoiding repeated-crawl overweighting."
-      : "The dashboard is connected to the Python analysis service, but that service is currently using the committed development comparable CSV because DATABASE_URL is not configured there.",
+      ? "The estimate uses the latest stored price for each matching marketplace listing, so repeated crawls do not count the same listing multiple times."
+      : "The dashboard is connected to the analysis service, but that service is using its development comparison dataset because Neon is not configured there.",
   };
 
   const allowedReferenceSourceIds = new Set(
@@ -167,7 +196,7 @@ export async function getDashboardData(
         : "Demo comparison data connected",
       detail: databaseBacked
         ? `${result.sample_size} marketplace listings matching this vehicle are feeding the estimate.`
-        : `${result.sample_size} development comparable rows match this vehicle. Connect the analysis service to Neon for observed marketplace data.`,
+        : `${result.sample_size} development comparison rows match this vehicle. Connect the analysis service to Neon for observed marketplace data.`,
     },
     snapshot: {
       ...pocDashboardData.snapshot,
@@ -177,11 +206,11 @@ export async function getDashboardData(
       region: result.region,
       variant: hasPocReferences
         ? pocDashboardData.snapshot.variant
-        : "Model-level comparable set",
+        : "All matching listings for this model",
       sampleSize: result.sample_size,
       observedRange: [result.valuation.low, result.valuation.high],
       lastRefresh: databaseBacked
-        ? "Live analysis from stored marketplace listings"
+        ? "Stored marketplace listings"
         : "Development comparison dataset",
       values: [listingSignal, ...referenceSignals],
       priceHistory: [
