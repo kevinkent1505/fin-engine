@@ -2,157 +2,144 @@
 
 B2B financial data and analysis platform for Riil.
 
+Fin Engine turns vehicle-market and official reference data into traceable analytical signals for future collateral intelligence, valuation and underwriting-support products.
+
+## Current status
+
+Implemented:
+
+```text
+✓ TypeScript / Fastify public API
+✓ Python / FastAPI analysis service
+✓ vehicle comparable valuation development slice
+✓ official NJKB ingestion
+✓ official DJP auction-limit ingestion
+✓ authorized OLX / Mobil123 / Carmudi crawl framework
+✓ authorized marketplace CSV feed adapters
+✓ normalization + quality/audit pipeline
+✓ Neon/PostgreSQL persistence
+✓ Alembic migrations
+✓ append-only observation history
+✓ Bruno public API collection
+```
+
+Next infrastructure target:
+
+```text
+Cloud Run Jobs
+→ Secret Manager
+→ manual cloud crawl validation
+→ Cloud Scheduler
+```
+
+Cloud Run Job infrastructure is **not yet committed/deployed**; see [Deployment](./docs/DEPLOYMENT.md) for the target design and rollout checklist.
+
 ## Architecture
 
-Fin Engine now has durable PostgreSQL persistence:
-
 ```text
-authorized crawler / official source
-             ↓
-      normalization + quality
-             ↓
-        Neon PostgreSQL
-             ↓
-      future feature engine
-             ↓
-      TypeScript public API
+external sources
+      ↓
+Python adapters / crawlers
+      ↓
+normalization + quality
+      ↓
+Neon PostgreSQL
+      ↓
+Python analysis / feature engine
+      ↓
+TypeScript public API
+      ↓
+B2B clients
 ```
 
-CSV remains available for local inspection, but PostgreSQL is the intended durable source of truth for scheduled cloud jobs.
+TypeScript owns public API/product infrastructure. Python owns data acquisition, normalization, persistence and analytical domain logic.
 
-## Data signals
+See [Architecture](./docs/ARCHITECTURE.md).
 
-Fin Engine keeps economic signals distinct:
+## Data semantics
 
-```text
-listing        marketplace asking price
-njkb           official NJKB reference value
-auction_limit  government auction limit
-transaction    future confirmed transaction value
-```
+Fin Engine does not treat every vehicle value as the same type of price.
 
-## Database model
+| `price_kind` | Meaning |
+| --- | --- |
+| `listing` | marketplace asking price |
+| `njkb` | official NJKB reference value |
+| `auction_limit` | published government auction limit/reserve-style value |
+| `transaction` | reserved for future confirmed transaction prices |
+| `reference` | generic reference signal when a stronger type does not apply |
 
-The first migration creates:
+These signal types must remain distinguishable throughout ingestion, persistence and analysis.
 
-```text
-data_sources
-    ↓
-ingestion_runs
-
-data_sources
-    ↓
-vehicle_records
-    ↓
-vehicle_observations
-         ↑
-    ingestion_runs
-```
-
-`vehicle_records` stores the stable identity of a record inside one source.
-
-For marketplace sources, that normally means the marketplace listing ID. Fin Engine does **not** yet claim cross-source entity resolution.
-
-`vehicle_observations` is append-only. If the same listing is crawled repeatedly:
+## Repository layout
 
 ```text
-Oct 1   Rp218m
-Oct 2   Rp214m
-Oct 3   Rp214m
+fin-engine/
+├── apps/
+│   ├── api/                         # TypeScript / Fastify public API
+│   └── analysis/                    # Python analysis + ingestion + DB
+├── bruno/                            # Git-tracked public API requests
+├── contracts/                        # language-neutral public contracts
+├── data/
+│   ├── sample/                       # committed development fixtures
+│   └── generated/                    # local generated output, Git-ignored
+├── docs/                             # developer documentation
+├── CONTRIBUTING.md
+└── docker-compose.yml
 ```
 
-all observations are retained. This enables later features such as price reductions, days observed, price volatility and listing persistence.
+## Quick start
 
-## Neon setup
+### Install dependencies
 
-Create a Neon PostgreSQL project in a region close to the future Cloud Run deployment.
+```bash
+yarn
 
-In Neon Connection Details, use the **pooled connection string** and expose it locally as:
+cd apps/analysis
+uv sync --extra dev
+```
+
+Python 3.12 is recommended to match the current production container base.
+
+### Run Python analysis service
+
+```bash
+cd apps/analysis
+export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
+uv run uvicorn riil_analysis.main:app --reload --host 0.0.0.0 --port 8001
+```
+
+### Run TypeScript API
+
+In another terminal, from the repository root:
+
+```bash
+yarn dev:api
+```
+
+Test:
+
+```bash
+curl "http://localhost:8000/v1/vehicles/valuation?make=Toyota&model=Avanza&year=2023&region=Jakarta"
+```
+
+## Database
+
+Fin Engine uses PostgreSQL for durable ingestion history. Neon is the initial hosted provider.
+
+Set a pooled Neon connection string:
 
 ```bash
 export DATABASE_URL='postgresql://USER:PASSWORD@...-pooler....neon.tech/neondb?sslmode=require'
 ```
 
-Do not commit the real connection string.
-
-Install/update dependencies:
+Apply migrations:
 
 ```bash
 cd apps/analysis
-uv sync --extra dev
-```
-
-Create the schema:
-
-```bash
 uv run alembic upgrade head
 ```
 
-## Persist an ingestion run
-
-You can export CSV and persist to Neon in the same run:
-
-```bash
-uv run fin-engine-data ingest \
-  --source olx_authorized_crawl \
-  --authorization-ref "your-permission-reference" \
-  --request-delay-seconds 2.0 \
-  --limit 5 \
-  --persist-db \
-  --output ../../data/generated/olx-listings-small.csv
-```
-
-For Cloud Run Jobs, the CSV can be omitted:
-
-```bash
-uv run fin-engine-data ingest \
-  --source olx_authorized_crawl \
-  --authorization-ref "your-permission-reference" \
-  --request-delay-seconds 2.0 \
-  --limit 5 \
-  --persist-db
-```
-
-The command reads `DATABASE_URL` from the environment.
-
-The JSON result contains the database run ID and counts for:
-
-```text
-created_records
-updated_records
-inserted_observations
-```
-
-## Marketplace crawler controls
-
-Authorized live crawlers:
-
-```text
-olx_authorized_crawl
-mobil123_authorized_crawl
-carmudi_authorized_crawl
-```
-
-Current self-imposed limits:
-
-```text
-concurrency             1
-default delay           2.0 sec/request
-minimum delay           1.0 sec/request
-default detail limit    10/run
-hard detail limit       50/run
-max discovery pages     5/run
-429 / 503 handling      Retry-After + backoff
-proxy rotation          none
-CAPTCHA bypass          none
-fingerprint evasion     none
-```
-
-Every crawl requires an authorization reference.
-
-## Other sources
-
-NJKB:
+Persist an ingestion run:
 
 ```bash
 uv run fin-engine-data ingest \
@@ -160,34 +147,83 @@ uv run fin-engine-data ingest \
   --persist-db
 ```
 
-DJP auction limits:
+See [Database and Persistence](./docs/DATABASE.md).
 
-```bash
-uv run fin-engine-data ingest \
-  --source djp_vehicle_auction_limits \
-  --limit 5 \
-  --persist-db
+## Ingestion sources
+
+Current source IDs include:
+
+```text
+kemendagri_njkb_2025
+djp_vehicle_auction_limits
+
+olx_authorized_crawl
+mobil123_authorized_crawl
+carmudi_authorized_crawl
+
+olx_authorized_feed
+mobil123_authorized_feed
+carmudi_authorized_feed
 ```
 
-## Testing
+Authorized marketplace crawlers are sequential and rate-limited. They require an authorization reference and deliberately do not implement CAPTCHA bypass, proxy rotation or access-control evasion.
+
+Example small crawl:
 
 ```bash
 cd apps/analysis
-uv sync --extra dev
+uv run fin-engine-data ingest \
+  --source mobil123_authorized_crawl \
+  --authorization-ref "permission-reference" \
+  --request-delay-seconds 2 \
+  --limit 5 \
+  --persist-db \
+  --output ../../data/generated/mobil123-small.csv
+```
+
+See [Ingestion and Source Adapters](./docs/INGESTION.md) and [Source Registry](./docs/SOURCES.md).
+
+## Testing
+
+Python:
+
+```bash
+cd apps/analysis
 uv run pytest -v
 ```
 
-Database persistence tests run against a temporary SQLite database, so the test suite does not need Neon credentials.
+TypeScript:
 
-## Bruno
+```bash
+yarn typecheck:api
+yarn build:api
+```
 
-This change affects internal ingestion/persistence only. No public HTTP contract changed, so Bruno remains unchanged.
+The Bruno collection under `bruno/` contains executable examples/assertions for the public API.
 
-## Next milestone
+Rule: when a public API route or contract changes, update Bruno in the same development pass.
 
-1. Create the Neon project and run the first migration.
-2. Persist one five-record marketplace crawl.
-3. Verify repeated crawls create one stable `vehicle_record` plus multiple `vehicle_observations`.
-4. Containerize the ingestion command as a Cloud Run Job.
-5. Store `DATABASE_URL` and marketplace authorization references in Google Secret Manager.
-6. Add Cloud Scheduler after the job is verified manually.
+See [Testing](./docs/TESTING.md).
+
+## Developer documentation
+
+Start with the [Developer Documentation Index](./docs/README.md).
+
+- [Local Development](./docs/DEVELOPMENT.md)
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Ingestion](./docs/INGESTION.md)
+- [Source Registry](./docs/SOURCES.md)
+- [Database](./docs/DATABASE.md)
+- [Testing](./docs/TESTING.md)
+- [Deployment](./docs/DEPLOYMENT.md)
+- [Contributing](./CONTRIBUTING.md)
+
+## Core engineering rules
+
+1. Keep public API/product concerns in TypeScript and analytical/data-domain logic in Python.
+2. Preserve source provenance and `price_kind` semantics.
+3. Keep observations append-only when history is analytically useful.
+4. Do not claim cross-source physical-vehicle identity before entity resolution exists.
+5. Use Alembic for deployed schema changes.
+6. Keep live external-site calls out of normal unit tests.
+7. Keep the README concise; put detailed operational guidance in `docs/`.
