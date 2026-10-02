@@ -123,7 +123,7 @@ export default async function OverviewPage({
         </Link>
       </section>
 
-      <VehicleChooser catalog={catalog} selected={selected} />
+      <VehicleChooser catalog={catalog} selected={actualSelection} />
 
       <AnalysisStatus status={data.analysis} />
 
