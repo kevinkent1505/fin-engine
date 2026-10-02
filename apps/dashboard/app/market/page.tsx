@@ -17,20 +17,20 @@ export default async function MarketIntelligencePage() {
     .sort((a, b) => (b.marketMedian ?? 0) - (a.marketMedian ?? 0))[0];
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6 sm:space-y-7">
       <section>
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+        <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-800">
           Market intelligence
         </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
+        <h1 className="mt-2 max-w-4xl text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl md:text-4xl">
           Regional market context for collateral decisions.
         </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 md:text-base">
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700 md:text-base">
           The POC combines official vehicle-stock statistics with placeholder price signals to show how Fin Engine can move from single-asset valuation toward portfolio and regional intelligence.
         </p>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Market intelligence metrics">
         <MetricCard
           metric={{
             label: "Passenger cars in selected provinces",
@@ -66,29 +66,30 @@ export default async function MarketIntelligencePage() {
       <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <RegionalMarketChart data={data.regionalMarket} />
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Regional comparison</h2>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
+        <article className="glass-panel min-w-0 rounded-2xl p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-slate-950">Regional comparison</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-600">
             Asking-price medians are illustrative in the current POC. Passenger-car counts are official BPS references.
           </p>
 
-          <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500">
+          <div className="mt-5 overflow-x-auto rounded-xl border border-white/70 bg-white/55 backdrop-blur-md" tabIndex={0} aria-label="Scrollable regional comparison table">
+            <table className="w-full min-w-[34rem] border-collapse text-left text-xs">
+              <caption className="sr-only">Regional passenger-car stock and illustrative asking-price comparison</caption>
+              <thead className="bg-slate-100/80 text-slate-700">
                 <tr>
-                  <th className="px-3 py-3 font-semibold">Province</th>
-                  <th className="px-3 py-3 text-right font-semibold">Passenger cars</th>
-                  <th className="px-3 py-3 text-right font-semibold">POC asking</th>
+                  <th scope="col" className="px-3 py-3 font-bold">Province</th>
+                  <th scope="col" className="px-3 py-3 text-right font-bold">Passenger cars</th>
+                  <th scope="col" className="px-3 py-3 text-right font-bold">POC asking</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-200/80">
                 {data.regionalMarket.map((item) => (
-                  <tr key={item.region} className="bg-white">
-                    <td className="px-3 py-3 font-medium text-slate-900">{item.region}</td>
-                    <td className="px-3 py-3 text-right text-slate-600">
+                  <tr key={item.region} className="bg-white/45">
+                    <th scope="row" className="px-3 py-3 font-semibold text-slate-950">{item.region}</th>
+                    <td className="px-3 py-3 text-right text-slate-700">
                       {new Intl.NumberFormat("en").format(item.passengerCars)}
                     </td>
-                    <td className="px-3 py-3 text-right font-medium text-slate-900">
+                    <td className="px-3 py-3 text-right font-semibold text-slate-950">
                       {item.marketMedian ? formatRupiahCompact(item.marketMedian) : "—"}
                     </td>
                   </tr>
@@ -96,32 +97,32 @@ export default async function MarketIntelligencePage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </article>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+      <section className="glass-panel rounded-2xl p-4 sm:p-5">
         <div className="grid gap-6 md:grid-cols-3">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">What this can become</div>
+          <article>
+            <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-600">What this can become</div>
             <div className="mt-2 text-lg font-semibold text-slate-950">Market depth</div>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
+            <p className="mt-2 text-sm leading-6 text-slate-600">
               Combine vehicle population, active listings and observed turnover to estimate how deep each regional market is.
             </p>
-          </div>
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">What this can become</div>
+          </article>
+          <article>
+            <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-600">What this can become</div>
             <div className="mt-2 text-lg font-semibold text-slate-950">Liquidity signal</div>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
+            <p className="mt-2 text-sm leading-6 text-slate-600">
               Use repeated listing observations, disappearance and price reductions to build an evidence-based liquidity feature.
             </p>
-          </div>
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">What this can become</div>
+          </article>
+          <article>
+            <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-600">What this can become</div>
             <div className="mt-2 text-lg font-semibold text-slate-950">Portfolio monitoring</div>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
+            <p className="mt-2 text-sm leading-6 text-slate-600">
               Track collateral value and downside changes across model, year and geography instead of reviewing one asset at a time.
             </p>
-          </div>
+          </article>
         </div>
       </section>
     </div>
