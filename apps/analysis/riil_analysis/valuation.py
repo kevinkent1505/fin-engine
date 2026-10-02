@@ -97,7 +97,7 @@ def list_available_vehicles(data_path: str) -> list[VehicleOption]:
 
 
 def database_listing_catalog_source(database_url: str) -> str:
-    """Describe whether persisted listing evidence is real/mixed or demo-only."""
+    """Describe whether persisted listing evidence is real, demo, or mixed."""
     engine = create_engine(
         normalize_database_url(database_url),
         pool_pre_ping=True,
@@ -121,6 +121,8 @@ def database_listing_catalog_source(database_url: str) -> str:
 
     if source_keys and source_keys <= {DEMO_LISTING_SOURCE}:
         return "database_demo"
+    if DEMO_LISTING_SOURCE in source_keys:
+        return "database_mixed"
 
     return "database"
 
