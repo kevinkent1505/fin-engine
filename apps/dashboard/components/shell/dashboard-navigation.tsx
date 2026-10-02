@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const navigation = [
   { href: "/", label: "Overview", shortLabel: "Overview" },
-  { href: "/vehicle", label: "Vehicle Intelligence", shortLabel: "Vehicle" },
-  { href: "/market", label: "Market Intelligence", shortLabel: "Market" },
-  { href: "/methodology", label: "Data & Methodology", shortLabel: "Data" },
+  { href: "/vehicle", label: "Vehicle Details", shortLabel: "Vehicle" },
+  { href: "/market", label: "Market Overview", shortLabel: "Market" },
+  { href: "/methodology", label: "About the Data", shortLabel: "Data" },
 ];
+
+const selectionKeys = ["make", "model", "year", "region"];
 
 export function DashboardNavigation({
   variant,
@@ -16,6 +19,20 @@ export function DashboardNavigation({
   variant: "desktop" | "mobile";
 }) {
   const pathname = usePathname();
+  const [selectionSuffix, setSelectionSuffix] = useState("");
+
+  useEffect(() => {
+    const current = new URLSearchParams(window.location.search);
+    const selection = new URLSearchParams();
+
+    for (const key of selectionKeys) {
+      const value = current.get(key);
+      if (value) selection.set(key, value);
+    }
+
+    const encoded = selection.toString();
+    setSelectionSuffix(encoded ? `?${encoded}` : "");
+  }, [pathname]);
 
   if (variant === "desktop") {
     return (
@@ -28,7 +45,7 @@ export function DashboardNavigation({
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={`${item.href}${selectionSuffix}`}
               aria-current={active ? "page" : undefined}
               className={`floating-nav-item ${
                 active ? "floating-nav-item-active" : ""
@@ -52,7 +69,7 @@ export function DashboardNavigation({
         return (
           <Link
             key={item.href}
-            href={item.href}
+            href={`${item.href}${selectionSuffix}`}
             aria-current={active ? "page" : undefined}
             aria-label={item.label}
             className={`flex min-h-12 min-w-0 items-center justify-center rounded-2xl border px-2 py-2 text-center text-[11px] font-black leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 focus-visible:ring-offset-2 ${
