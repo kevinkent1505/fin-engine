@@ -14,7 +14,8 @@ Implemented:
 ✓ TypeScript / Fastify public API
 ✓ Python / FastAPI analysis service
 ✓ Next.js / Tailwind / D3 business dashboard POC
-✓ vehicle comparable valuation development slice
+✓ database-backed comparable valuation path
+✓ dashboard → analysis-engine server-side integration
 ✓ official NJKB ingestion
 ✓ official DJP auction-limit ingestion
 ✓ authorized OLX / Mobil123 / Carmudi crawl framework
@@ -33,10 +34,10 @@ Cloud Run Jobs
 → Secret Manager
 → manual cloud crawl validation
 → Cloud Scheduler
-→ connect persisted observations to dashboard data layer
+→ populate observed marketplace history in Neon
 ```
 
-Cloud Run Job infrastructure is **not yet committed/deployed**; see [Deployment](./docs/DEPLOYMENT.md) for the target design and rollout checklist.
+Cloud Run Job infrastructure is **not yet committed/deployed**; see [Deployment](./docs/DEPLOYMENT.md).
 
 ## Architecture
 
@@ -51,14 +52,38 @@ Neon PostgreSQL
       ↓
 Python analysis / feature engine
       ↓
-TypeScript public API / dashboard query layer
-      ↓
-B2B clients + Next.js business dashboard
+┌──────────────────────┬──────────────────────┐
+│ TypeScript public API│ Next.js dashboard    │
+└──────────────────────┴──────────────────────┘
+      ↓                         ↓
+B2B API clients           business users
 ```
 
-TypeScript owns public API/product infrastructure. Python owns data acquisition, normalization, persistence and analytical domain logic. The dashboard consumes domain outputs; it does not own analytical formulas.
+Python owns data acquisition, normalization, persistence and analytical domain logic. TypeScript owns the public API/control plane. The dashboard consumes analytical outputs and does not duplicate valuation formulas.
 
 See [Architecture](./docs/ARCHITECTURE.md).
+
+## Valuation data source
+
+The Python valuation service now prefers persisted marketplace observations when `DATABASE_URL` is configured.
+
+```text
+DATABASE_URL configured
+        ↓
+latest listing observation per stable vehicle_record
+        ↓
+comparable_market_db_v1
+```
+
+Without `DATABASE_URL`, local development continues to use the committed sample comparable CSV:
+
+```text
+VEHICLE_DATA_PATH
+        ↓
+comparable_market_v1
+```
+
+This keeps development easy while allowing the same analysis endpoint to become genuinely observation-backed as Neon fills with authorized marketplace data.
 
 ## Data semantics
 
@@ -72,7 +97,7 @@ Fin Engine does not treat every vehicle value as the same type of price.
 | `transaction` | reserved for future confirmed transaction prices |
 | `reference` | generic reference signal when a stronger type does not apply |
 
-These signal types must remain distinguishable throughout ingestion, persistence, analysis and presentation.
+These signal types remain distinguishable throughout ingestion, persistence, analysis and presentation.
 
 ## Repository layout
 
@@ -94,34 +119,17 @@ fin-engine/
 
 ## Quick start
 
-### Install dependencies
+Install dependencies:
 
 ```bash
 yarn
 
 cd apps/analysis
 uv sync --extra dev
+cd ../..
 ```
 
-Python 3.12 is recommended to match the current production container base.
-
-### Run the business dashboard
-
-From the repository root:
-
-```bash
-yarn dev:dashboard
-```
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-The current dashboard is a POC. It uses official public BPS/Kemendagri references together with clearly labeled illustrative marketplace and auction signals until live persisted observations are connected.
-
-See [Business Dashboard](./docs/DASHBOARD.md).
+Python 3.12 is recommended.
 
 ### Run Python analysis service
 
@@ -131,9 +139,36 @@ export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
 uv run uvicorn riil_analysis.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-### Run TypeScript API
+To use observed marketplace data instead, export a Neon `DATABASE_URL` in the same shell before starting the service.
 
-In another terminal, from the repository root:
+### Run the business dashboard
+
+In another terminal:
+
+```bash
+cp apps/dashboard/.env.example apps/dashboard/.env.local
+yarn dev:dashboard
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+The dashboard calls the Python analysis service server-side. It visibly distinguishes:
+
+```text
+Analysis engine · Neon observations
+Analysis engine · development comparables
+Fallback POC data
+```
+
+Regional market context uses official BPS vehicle-stock data. The auction/downside signal remains explicitly illustrative until persisted auction data is exposed through analysis.
+
+See [Business Dashboard](./docs/DASHBOARD.md).
+
+### Run TypeScript public API
 
 ```bash
 yarn dev:api
@@ -149,15 +184,9 @@ curl "http://localhost:8000/v1/vehicles/valuation?make=Toyota&model=Avanza&year=
 
 Fin Engine uses PostgreSQL for durable ingestion history. Neon is the initial hosted provider.
 
-Set a pooled Neon connection string:
-
 ```bash
 export DATABASE_URL='postgresql://USER:PASSWORD@...-pooler....neon.tech/neondb?sslmode=require'
-```
 
-Apply migrations:
-
-```bash
 cd apps/analysis
 uv run alembic upgrade head
 ```
@@ -174,7 +203,7 @@ See [Database and Persistence](./docs/DATABASE.md).
 
 ## Ingestion sources
 
-Current source IDs include:
+Current source IDs:
 
 ```text
 kemendagri_njkb_2025
@@ -189,9 +218,9 @@ mobil123_authorized_feed
 carmudi_authorized_feed
 ```
 
-Authorized marketplace crawlers are sequential and rate-limited. They require an authorization reference and deliberately do not implement CAPTCHA bypass, proxy rotation or access-control evasion.
+Authorized marketplace crawlers are sequential and rate-limited. They require an authorization reference and do not implement CAPTCHA bypass, proxy rotation or access-control evasion.
 
-Example small crawl:
+Example:
 
 ```bash
 cd apps/analysis
@@ -204,7 +233,7 @@ uv run fin-engine-data ingest \
   --output ../../data/generated/mobil123-small.csv
 ```
 
-See [Ingestion and Source Adapters](./docs/INGESTION.md) and [Source Registry](./docs/SOURCES.md).
+See [Ingestion](./docs/INGESTION.md) and [Source Registry](./docs/SOURCES.md).
 
 ## Testing
 
@@ -222,23 +251,19 @@ yarn typecheck:api
 yarn build:api
 ```
 
-Business dashboard:
+Dashboard:
 
 ```bash
 yarn typecheck:dashboard
 yarn build:dashboard
 ```
 
-The Bruno collection under `bruno/` contains executable examples/assertions for the public API.
-
-Rule: when a public API route or contract changes, update Bruno in the same development pass.
-
-See [Testing](./docs/TESTING.md).
+The Bruno collection under `bruno/` contains executable public API examples/assertions. Public API route or contract changes must update Bruno in the same development pass.
 
 ## Documentation
 
-- [Business Overview](./docs/BUSINESS.md) — non-technical product, customer, use-case and commercial context
-- [Business Dashboard](./docs/DASHBOARD.md) — POC structure, visual/data conventions and live-data migration path
+- [Business Overview](./docs/BUSINESS.md)
+- [Business Dashboard](./docs/DASHBOARD.md)
 - [Documentation Index](./docs/README.md)
 - [Local Development](./docs/DEVELOPMENT.md)
 - [Architecture](./docs/ARCHITECTURE.md)
@@ -257,5 +282,4 @@ See [Testing](./docs/TESTING.md).
 4. Do not claim cross-source physical-vehicle identity before entity resolution exists.
 5. Use Alembic for deployed schema changes.
 6. Keep live external-site calls out of normal unit tests.
-7. Keep dashboard pages behind a data-access boundary; do not put analytical formulas or database credentials in browser code.
-8. Keep the README concise; put detailed business and operational guidance in `docs/`.
+7. Keep dashboard pages behind a server-side data-access boundary; never put analytical formulas or database credentials in browser code.
