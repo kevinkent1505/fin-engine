@@ -51,6 +51,15 @@ export async function getVehicleCatalog(): Promise<VehicleCatalog> {
   const result = await requestAnalysisVehicleOptions();
 
   if (result.status === "ok" && result.data.vehicles.length > 0) {
+    if (result.data.source === "database_demo") {
+      return {
+        options: result.data.vehicles,
+        source: "database_demo",
+        detail:
+          "Vehicle choices come from synthetic marketplace records stored in Neon for this POC. They are demo records, not live marketplace observations.",
+      };
+    }
+
     const databaseBacked = result.data.source === "database";
     return {
       options: result.data.vehicles,
@@ -120,8 +129,8 @@ export function resolveVehicleSelection(
  *
  * Primary path: Python analysis service. When DATABASE_URL is configured on
  * the analysis service, valuation is produced from latest persisted listing
- * observations in Neon. Without DATABASE_URL the analysis service uses its
- * committed development comparable CSV.
+ * observations in Neon. Synthetic POC listings remain explicitly labelled
+ * and never silently become "observed" marketplace evidence.
  *
  * Fallback path: clearly-labelled POC fixture. We never silently present the
  * fallback marketplace values as live analysis output.
@@ -143,13 +152,18 @@ export async function getDashboardData(
   }
 
   const result = analysisResult.data;
-  const databaseBacked = result.method === "comparable_market_db_v1";
-  const confidence = databaseBacked ? "observed" : "illustrative";
+  const observedDatabaseBacked = result.method === "comparable_market_db_v1";
+  const syntheticDatabaseBacked =
+    result.method === "comparable_market_demo_db_v1";
+  const databaseBacked = observedDatabaseBacked || syntheticDatabaseBacked;
+  const confidence = observedDatabaseBacked ? "observed" : "illustrative";
 
   const listingSignal: ValuePoint = {
-    label: databaseBacked
+    label: observedDatabaseBacked
       ? "Marketplace asking median"
-      : "Development comparable median",
+      : syntheticDatabaseBacked
+        ? "Synthetic marketplace median"
+        : "Development comparable median",
     value: result.valuation.estimate,
     kind: "listing",
     confidence,
@@ -158,28 +172,40 @@ export async function getDashboardData(
   const analysisSource: SourceDescriptor = {
     id: "fin_engine_analysis",
     name: "Fin Engine analysis engine",
-    type: databaseBacked
+    type: observedDatabaseBacked
       ? "Marketplace comparable valuation"
-      : "Development comparable valuation",
+      : syntheticDatabaseBacked
+        ? "Synthetic marketplace comparable valuation"
+        : "Development comparable valuation",
     confidence,
     lastUpdated: "Current dashboard request",
-    note: databaseBacked
+    note: observedDatabaseBacked
       ? "The estimate uses the latest stored price for each matching marketplace listing, so repeated crawls do not count the same listing multiple times."
-      : "The dashboard is connected to the analysis service, but that service is using its development comparison dataset because Neon is not configured there.",
+      : syntheticDatabaseBacked
+        ? "The estimate is calculated from synthetic POC listing records stored in Neon. These prices are generated for demonstration and are not scraped or observed marketplace prices."
+        : "The dashboard is connected to the analysis service, but that service is using its development comparison dataset because Neon is not configured there.",
   };
 
   return {
     ...pocDashboardData,
     mode: "analysis",
     analysis: {
-      state: databaseBacked ? "database" : "development",
+      state: observedDatabaseBacked
+        ? "database"
+        : syntheticDatabaseBacked
+          ? "demo"
+          : "development",
       method: result.method,
-      label: databaseBacked
+      label: observedDatabaseBacked
         ? "Marketplace data connected"
-        : "Demo comparison data connected",
-      detail: databaseBacked
+        : syntheticDatabaseBacked
+          ? "Demo marketplace data connected"
+          : "Demo comparison data connected",
+      detail: observedDatabaseBacked
         ? `${result.sample_size} marketplace listings matching this vehicle are feeding the estimate.`
-        : `${result.sample_size} development comparison rows match this vehicle. Connect the analysis service to Neon for observed marketplace data.`,
+        : syntheticDatabaseBacked
+          ? `${result.sample_size} synthetic POC listings matching this vehicle are feeding the estimate. No live marketplace scrape is represented.`
+          : `${result.sample_size} development comparison rows match this vehicle. Connect the analysis service to Neon for persisted listing data.`,
     },
     snapshot: {
       ...pocDashboardData.snapshot,
@@ -190,9 +216,11 @@ export async function getDashboardData(
       variant: "All matching listings for this model",
       sampleSize: result.sample_size,
       observedRange: [result.valuation.low, result.valuation.high],
-      lastRefresh: databaseBacked
+      lastRefresh: observedDatabaseBacked
         ? "Stored marketplace listings"
-        : "Development comparison dataset",
+        : syntheticDatabaseBacked
+          ? "Synthetic POC marketplace dataset"
+          : "Development comparison dataset",
       values: [listingSignal],
       priceHistory: [
         {
