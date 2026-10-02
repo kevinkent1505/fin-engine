@@ -6,8 +6,9 @@ See [INGESTION.md](./INGESTION.md) for adapter contracts and [ARCHITECTURE.md](.
 
 ## Registry
 
-| Source ID | Provider/source | `price_kind` | Acquisition | Status |
+| Source ID | Provider/source | Signal | Acquisition | Status |
 | --- | --- | --- | --- | --- |
+| `bps_vehicle_stock_2025` | Badan Pusat Statistik | regional vehicle stock | official public statistics table | implemented |
 | `kemendagri_njkb_2025` | Kemendagri / JDIH BPK | `njkb` | official PDF | implemented |
 | `djp_vehicle_auction_limits` | Direktorat Jenderal Pajak | `auction_limit` | official public auction announcements | implemented |
 | `marketplace_demo_seed` | Riil POC synthetic generator | `listing` | deterministic synthetic seed | implemented |
@@ -19,6 +20,63 @@ See [INGESTION.md](./INGESTION.md) for adapter contracts and [ARCHITECTURE.md](.
 | `carmudi_authorized_feed` | Carmudi Indonesia | `listing` | authorized CSV/feed | implemented |
 
 `transaction` exists in the common price-kind contract but no confirmed transaction source is integrated yet.
+
+## POC data policy
+
+The public POC intentionally combines real official/open data with synthetic marketplace data:
+
+```text
+BPS regional vehicle stock     official / fetched from source
+Kemendagri NJKB                official / fetched from source
+DJP auction limits             official / fetched from source
+Marketplace asking prices      synthetic POC seed
+```
+
+Synthetic marketplace rows must remain visibly labelled and must never be represented as scraped or observed marketplace evidence.
+
+## `bps_vehicle_stock_2025`
+
+Publisher/source:
+
+```text
+Badan Pusat Statistik (BPS - Statistics Indonesia)
+Jumlah Kendaraan Bermotor Menurut Provinsi dan Jenis Kendaraan (unit), 2025
+```
+
+Acquisition:
+
+```text
+public BPS statistics table -> parser -> append-only Neon snapshot
+```
+
+Captured fields include:
+
+```text
+province
+passenger cars
+buses
+trucks
+motorcycles
+total motor vehicles
+```
+
+This dataset is regional market context, not vehicle-level price evidence. It is persisted in `regional_vehicle_statistics`, separately from `vehicle_records` and `vehicle_observations`.
+
+Run it with:
+
+```bash
+uv run fin-engine-data ingest \
+  --source bps_vehicle_stock_2025 \
+  --persist-db
+```
+
+The analysis service exposes the latest persisted snapshot at:
+
+```text
+GET /internal/v1/regional-market
+```
+
+The dashboard uses the persisted BPS snapshot when available and falls back to the committed static fixture only if the live-source snapshot is unavailable.
 
 ## Source policy
 
@@ -60,7 +118,9 @@ reference
   generic reference value only when a stronger semantic type does not apply
 ```
 
-Analytical models may compare these signals, but must keep their origin and meaning available.
+Regional vehicle-stock statistics are contextual market-size indicators and do not use `price_kind`.
+
+Analytical models may compare price signals, but must keep their origin and meaning available.
 
 ## `marketplace_demo_seed`
 
@@ -250,6 +310,8 @@ The ingestion pipeline performs source-specific semantic validation where enough
 expected DP PKB ≈ NJKB × weight factor
 ```
 
+The 2025 adapter remains available for reproducible historical/reference ingestion. A separate current-year adapter should be introduced rather than silently changing the semantics of this source ID.
+
 ## `djp_vehicle_auction_limits`
 
 Publisher/source:
@@ -304,25 +366,7 @@ seller_type
 
 ## Provenance expectations
 
-Every persisted source observation should be traceable through:
-
-```text
-source_key
-source_record_id
-source_url
-observed_at
-ingestion_run
-```
-
-Where applicable, provenance metadata should also include:
-
-```text
-authorization_reference
-access_basis
-parser_version
-source coding/row metadata
-raw source values used for canonicalization
-```
+Every persisted source observation should be traceable through source identity, source URL, observation time and ingestion run. Where applicable, provenance metadata should also preserve authorization basis, parser version and the raw source values used for canonicalization.
 
 ## Adding another source
 
@@ -333,10 +377,10 @@ Before implementing a new source, document it here with:
 3. acquisition method;
 4. permission/access basis;
 5. stable record-ID strategy;
-6. `price_kind`;
+6. signal semantics;
 7. important source-specific fields;
 8. semantic limitations;
-9. expected crawl/feed frequency;
+9. expected refresh frequency;
 10. any stricter rate/retention rules.
 
 Then follow the adapter workflow in [INGESTION.md](./INGESTION.md).
