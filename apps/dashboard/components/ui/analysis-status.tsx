@@ -16,15 +16,15 @@ const dotClass: Record<AnalysisStatusModel["state"], string> = {
 };
 
 const connectionLabel: Record<AnalysisStatusModel["state"], string> = {
-  database: "Engine connected",
-  development: "Engine connected",
-  fallback: "Fixture fallback",
+  database: "Connected",
+  development: "Demo mode",
+  fallback: "Fallback mode",
 };
 
 const sourceLabel: Record<AnalysisStatusModel["state"], string> = {
-  database: "Observed marketplace data",
-  development: "Development comparables",
-  fallback: "Illustrative marketplace data",
+  database: "Marketplace listings",
+  development: "Demo comparison data",
+  fallback: "Default demo data",
 };
 
 export function AnalysisStatus({ status }: { status: AnalysisStatusModel }) {
@@ -46,11 +46,6 @@ export function AnalysisStatus({ status }: { status: AnalysisStatusModel }) {
             <p className="mt-1 text-sm font-semibold leading-5">
               {status.detail}
             </p>
-            {status.method ? (
-              <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.1em] opacity-80">
-                Method: {status.method}
-              </div>
-            ) : null}
           </div>
         </div>
 
