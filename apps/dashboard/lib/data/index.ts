@@ -145,13 +145,6 @@ export async function getDashboardData(
   const result = analysisResult.data;
   const databaseBacked = result.method === "comparable_market_db_v1";
   const confidence = databaseBacked ? "observed" : "illustrative";
-  const selectedVehicle: VehicleOption = {
-    make: result.vehicle.make,
-    model: result.vehicle.model,
-    year: result.vehicle.year,
-    region: result.region,
-  };
-  const hasPocReferences = sameVehicle(selectedVehicle, pocReferenceVehicle);
 
   const listingSignal: ValuePoint = {
     label: databaseBacked
@@ -162,15 +155,11 @@ export async function getDashboardData(
     confidence,
   };
 
-  const referenceSignals = hasPocReferences
-    ? pocDashboardData.snapshot.values.filter((item) => item.kind !== "listing")
-    : [];
-
   const analysisSource: SourceDescriptor = {
     id: "fin_engine_analysis",
     name: "Fin Engine analysis engine",
     type: databaseBacked
-      ? "Neon-backed marketplace comparable valuation"
+      ? "Marketplace comparable valuation"
       : "Development comparable valuation",
     confidence,
     lastUpdated: "Current dashboard request",
@@ -178,12 +167,6 @@ export async function getDashboardData(
       ? "The estimate uses the latest stored price for each matching marketplace listing, so repeated crawls do not count the same listing multiple times."
       : "The dashboard is connected to the analysis service, but that service is using its development comparison dataset because Neon is not configured there.",
   };
-
-  const allowedReferenceSourceIds = new Set(
-    hasPocReferences
-      ? ["bps_vehicle_stock_2023", "kemendagri_njkb_2025", "auction_poc"]
-      : ["bps_vehicle_stock_2023"],
-  );
 
   return {
     ...pocDashboardData,
@@ -204,15 +187,13 @@ export async function getDashboardData(
       model: result.vehicle.model,
       year: result.vehicle.year,
       region: result.region,
-      variant: hasPocReferences
-        ? pocDashboardData.snapshot.variant
-        : "All matching listings for this model",
+      variant: "All matching listings for this model",
       sampleSize: result.sample_size,
       observedRange: [result.valuation.low, result.valuation.high],
       lastRefresh: databaseBacked
         ? "Stored marketplace listings"
         : "Development comparison dataset",
-      values: [listingSignal, ...referenceSignals],
+      values: [listingSignal],
       priceHistory: [
         {
           date: "Current",
@@ -221,8 +202,8 @@ export async function getDashboardData(
       ],
     },
     sources: [
-      ...pocDashboardData.sources.filter((source) =>
-        allowedReferenceSourceIds.has(source.id),
+      ...pocDashboardData.sources.filter(
+        (source) => source.id === "bps_vehicle_stock_2023",
       ),
       analysisSource,
     ],
