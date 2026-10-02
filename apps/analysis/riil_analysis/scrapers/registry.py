@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 from riil_analysis.scrapers.base import VehicleSourceAdapter
 from riil_analysis.scrapers.sources.authorized_marketplace_crawl import (
@@ -10,6 +11,9 @@ from riil_analysis.scrapers.sources.authorized_marketplace_csv import (
     CarmudiAuthorizedFeedAdapter,
     Mobil123AuthorizedFeedAdapter,
     OlxAuthorizedFeedAdapter,
+)
+from riil_analysis.scrapers.sources.bps_vehicle_stock_2025 import (
+    BpsVehicleStock2025Adapter,
 )
 from riil_analysis.scrapers.sources.djp_vehicle_auction_limits import (
     DjpVehicleAuctionLimitsAdapter,
@@ -34,6 +38,12 @@ SOURCE_FACTORIES: dict[str, Callable[[], VehicleSourceAdapter]] = {
     OlxAuthorizedFeedAdapter.source_id: OlxAuthorizedFeedAdapter,
 }
 
+REGIONAL_SOURCE_FACTORIES: dict[str, Callable[[], Any]] = {
+    BpsVehicleStock2025Adapter.source_id: BpsVehicleStock2025Adapter,
+}
+
+ALL_SOURCE_IDS = sorted(set(SOURCE_FACTORIES) | set(REGIONAL_SOURCE_FACTORIES))
+
 
 def get_source_adapter(source_id: str) -> VehicleSourceAdapter:
     try:
@@ -41,5 +51,15 @@ def get_source_adapter(source_id: str) -> VehicleSourceAdapter:
     except KeyError as error:
         supported = ", ".join(sorted(SOURCE_FACTORIES))
         raise ValueError(
-            f"Unknown source {source_id!r}. Supported: {supported}"
+            f"Unknown vehicle source {source_id!r}. Supported: {supported}"
+        ) from error
+
+
+def get_regional_source_adapter(source_id: str) -> Any:
+    try:
+        return REGIONAL_SOURCE_FACTORIES[source_id]()
+    except KeyError as error:
+        supported = ", ".join(sorted(REGIONAL_SOURCE_FACTORIES))
+        raise ValueError(
+            f"Unknown regional source {source_id!r}. Supported: {supported}"
         ) from error

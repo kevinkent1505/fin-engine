@@ -7,6 +7,10 @@ from .models import (
     VehicleValuationRequest,
     VehicleValuationResponse,
 )
+from .regional import (
+    RegionalMarketResponse,
+    latest_regional_market_from_database,
+)
 from .valuation import (
     database_listing_catalog_source,
     estimate_vehicle_value,
@@ -44,6 +48,24 @@ def vehicle_options() -> VehicleCatalogResponse:
         vehicles=list_available_vehicles(data_path),
         source="development",
     )
+
+
+@app.get(
+    "/internal/v1/regional-market",
+    response_model=RegionalMarketResponse,
+)
+def regional_market() -> RegionalMarketResponse:
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise HTTPException(
+            status_code=503,
+            detail="DATABASE_URL is required for persisted regional statistics.",
+        )
+
+    try:
+        return latest_regional_market_from_database(database_url)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @app.post(

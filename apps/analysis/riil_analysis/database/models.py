@@ -171,3 +171,52 @@ class VehicleObservation(Base):
             "observed_at",
         ),
     )
+
+
+class RegionalVehicleStatistic(Base):
+    """Append-only official vehicle-stock statistics by region and year."""
+
+    __tablename__ = "regional_vehicle_statistics"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    source_key: Mapped[str] = mapped_column(
+        ForeignKey("data_sources.source_key"),
+        nullable=False,
+    )
+    ingestion_run_id: Mapped[str] = mapped_column(
+        ForeignKey("ingestion_runs.id"),
+        nullable=False,
+    )
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    region: Mapped[str] = mapped_column(String(200), nullable=False)
+    passenger_cars: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    buses: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    trucks: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    motorcycles: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    total: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    metadata_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "ingestion_run_id",
+            "year",
+            "region",
+            name="uq_regional_vehicle_statistics_run_year_region",
+        ),
+        Index(
+            "ix_regional_vehicle_statistics_source_year_observed",
+            "source_key",
+            "year",
+            "observed_at",
+        ),
+        Index(
+            "ix_regional_vehicle_statistics_region_year",
+            "region",
+            "year",
+        ),
+    )
