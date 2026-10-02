@@ -44,7 +44,12 @@ export type VehicleOption = {
 
 export type VehicleCatalog = {
   options: VehicleOption[];
-  source: "database" | "database_demo" | "development" | "fallback";
+  source:
+    | "database"
+    | "database_demo"
+    | "database_mixed"
+    | "development"
+    | "fallback";
   detail: string;
 };
 
