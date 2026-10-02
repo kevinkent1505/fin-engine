@@ -35,6 +35,19 @@ export type RegionalMarketPoint = {
   marketMedian?: number;
 };
 
+export type VehicleOption = {
+  make: string;
+  model: string;
+  year: number;
+  region: string;
+};
+
+export type VehicleCatalog = {
+  options: VehicleOption[];
+  source: "database" | "development" | "fallback";
+  detail: string;
+};
+
 export type VehicleSnapshot = {
   make: string;
   model: string;
