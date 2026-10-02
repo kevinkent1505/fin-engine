@@ -12,11 +12,12 @@ This guide is the fastest path from a fresh clone to a working Fin Engine develo
 - Docker Desktop or another Docker Compose-compatible runtime, optional
 - Neon/PostgreSQL only when testing persistence
 
-The repository currently contains two runtime applications:
+The repository currently contains three application surfaces:
 
 ```text
-apps/api       TypeScript / Fastify public API
-apps/analysis  Python / FastAPI, ingestion, normalization, persistence
+apps/api        TypeScript / Fastify public API
+apps/analysis   Python / FastAPI, ingestion, normalization, persistence
+apps/dashboard  Next.js / Tailwind / D3 business dashboard POC
 ```
 
 ## Clone and bootstrap
@@ -26,7 +27,7 @@ git clone https://github.com/kevinkent1505/fin-engine.git
 cd fin-engine
 ```
 
-Install the TypeScript dependencies:
+Install the TypeScript/Next.js dependencies:
 
 ```bash
 yarn
@@ -69,6 +70,8 @@ Current variables:
 | `VEHICLE_DATA_PATH` | Python analysis | Development comparable-data CSV |
 | `DATABASE_URL` | Python ingestion/persistence | Neon/PostgreSQL connection string |
 
+The dashboard POC currently requires no secrets because it reads deterministic fixtures through a server-side data-access boundary.
+
 For local API development, a typical setup is:
 
 ```bash
@@ -83,7 +86,32 @@ export DATABASE_URL='postgresql://USER:PASSWORD@HOST-pooler.../neondb?sslmode=re
 
 Prefer Neon's pooled endpoint for short-lived/serverless clients.
 
-## Run the services locally
+## Run the applications locally
+
+### Dashboard only
+
+The dashboard can be run independently from the API and Python service in POC mode:
+
+```bash
+yarn dev:dashboard
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+Routes:
+
+```text
+/              Executive Overview
+/vehicle       Vehicle Intelligence
+/market        Market Intelligence
+/methodology   Data & Methodology
+```
+
+See [DASHBOARD.md](./DASHBOARD.md) before changing its data-access structure.
 
 ### Terminal 1: Python analysis service
 
@@ -123,6 +151,14 @@ Test the current public valuation endpoint:
 curl "http://localhost:8000/v1/vehicles/valuation?make=Toyota&model=Avanza&year=2023&region=Jakarta"
 ```
 
+### Terminal 3: business dashboard
+
+```bash
+yarn dev:dashboard
+```
+
+The dashboard currently does not need the other two services running. When its data layer moves to live Fin Engine queries, that dependency should be introduced inside `apps/dashboard/lib/data/`, not directly inside route components.
+
 ## Bruno
 
 The Git-tracked Bruno collection is under `bruno/`.
@@ -131,7 +167,7 @@ Open that directory in Bruno and select the `local` environment.
 
 Development rule: **every public API route or contract change must update the corresponding Bruno request and assertions in the same development pass.**
 
-Internal CLI ingestion commands do not need Bruno requests unless they become public HTTP endpoints.
+Internal CLI ingestion commands and dashboard-only internal query changes do not need Bruno requests unless they become public HTTP endpoints.
 
 ## Run with Docker Compose
 
@@ -141,9 +177,11 @@ From the repository root:
 docker compose up --build
 ```
 
-This currently runs the public TypeScript API and Python FastAPI service. The ingestion CLI and future Cloud Run Jobs use the same Python package but are separate execution modes.
+This currently runs the public TypeScript API and Python FastAPI service. The dashboard is currently run with Next.js directly and is not yet included in Compose.
 
-## Run tests
+The ingestion CLI and future Cloud Run Jobs use the same Python package but are separate execution modes.
+
+## Run tests / builds
 
 Python:
 
@@ -152,11 +190,18 @@ cd apps/analysis
 uv run pytest -v
 ```
 
-TypeScript:
+TypeScript API:
 
 ```bash
 yarn typecheck:api
 yarn build:api
+```
+
+Dashboard:
+
+```bash
+yarn typecheck:dashboard
+yarn build:dashboard
 ```
 
 See [TESTING.md](./TESTING.md) for the testing strategy.
@@ -221,6 +266,16 @@ Production-oriented ingestion should persist canonical observations to PostgreSQ
 ## Common commands
 
 ```bash
+# Install JS dependencies
+yarn
+
+# Dashboard development
+yarn dev:dashboard
+
+# Dashboard typecheck / build
+yarn typecheck:dashboard
+yarn build:dashboard
+
 # Python dependencies
 cd apps/analysis && uv sync --extra dev
 
@@ -244,6 +299,14 @@ cd apps/analysis && uv run fin-engine-data ingest --help
 ```
 
 ## Troubleshooting
+
+### Dashboard build cannot resolve `d3`
+
+Run `yarn` from the repository root after pulling the dashboard workspace changes. The root Yarn workspace owns JavaScript dependency installation.
+
+### Dashboard shows `POC fixture`
+
+That is expected. Official public-reference values and illustrative market signals are deliberately separated until live persisted observations are wired into `apps/dashboard/lib/data/index.ts`.
 
 ### Public API returns `502 analysis_unavailable`
 
