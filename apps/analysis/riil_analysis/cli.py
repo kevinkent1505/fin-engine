@@ -6,15 +6,21 @@ from pathlib import Path
 from typing import Any
 
 from riil_analysis.database.config import get_database_url
-from riil_analysis.database.persistence import persist_ingestion
+from riil_analysis.database.persistence import (
+    persist_ingestion,
+    persist_regional_vehicle_statistics,
+)
 from riil_analysis.ingestion.models import (
     CanonicalVehicleObservation,
     IngestionAudit,
     IngestionQualityReport,
 )
 from riil_analysis.ingestion.pipeline import normalize_records
+from riil_analysis.regional import RegionalVehicleStatisticInput
 from riil_analysis.scrapers.registry import (
-    SOURCE_FACTORIES,
+    ALL_SOURCE_IDS,
+    REGIONAL_SOURCE_FACTORIES,
+    get_regional_source_adapter,
     get_source_adapter,
 )
 
@@ -40,6 +46,20 @@ CSV_FIELDS = [
     "dp_pkb_expected",
     "dp_pkb_difference",
     "dp_pkb_check",
+    "metadata",
+]
+
+REGIONAL_CSV_FIELDS = [
+    "source",
+    "source_url",
+    "observed_at",
+    "year",
+    "region",
+    "passenger_cars",
+    "buses",
+    "trucks",
+    "motorcycles",
+    "total",
     "metadata",
 ]
 
@@ -73,6 +93,28 @@ def write_csv(
             writer.writerow(observation_row(observation))
 
 
+def write_regional_csv(
+    observations: list[RegionalVehicleStatisticInput],
+    output_path: Path,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=REGIONAL_CSV_FIELDS,
+            extrasaction="ignore",
+        )
+        writer.writeheader()
+        for observation in observations:
+            data = observation.model_dump(mode="json")
+            data["metadata"] = json.dumps(
+                data["metadata"],
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            writer.writerow(data)
+
+
 def write_audit(
     output_path: Path,
     *,
@@ -95,6 +137,55 @@ def write_audit(
     return audit_path
 
 
+def ingest_regional(
+    source_id: str,
+    output_path: Path | None,
+    limit: int | None,
+    persist_db: bool,
+) -> int:
+    started_at = datetime.now(UTC)
+    adapter = get_regional_source_adapter(source_id)
+    observations = adapter.run()
+    if limit is not None:
+        observations = observations[:limit]
+
+    output_value: str | None = None
+    if output_path is not None:
+        write_regional_csv(observations, output_path)
+        output_value = str(output_path)
+
+    database_result: dict[str, int | str] | None = None
+    if persist_db:
+        database_result = persist_regional_vehicle_statistics(
+            database_url=get_database_url(),
+            source_key=adapter.source_id,
+            source_url=adapter.source_url,
+            observations=observations,
+            started_at=started_at,
+            requested_limit=limit,
+        )
+
+    quality = {
+        "source": adapter.source_id,
+        "total_records": len(observations),
+        "valid_records": len(observations),
+        "invalid_records": 0,
+        "dataset_type": "regional_vehicle_statistics",
+    }
+    print(
+        json.dumps(
+            {
+                "output": output_value,
+                "audit_output": None,
+                "database": database_result,
+                "quality": quality,
+            },
+            indent=2,
+        )
+    )
+    return 0 if observations else 1
+
+
 def ingest(
     source_id: str,
     output_path: Path | None,
@@ -105,6 +196,14 @@ def ingest(
     request_delay_seconds: float,
     persist_db: bool,
 ) -> int:
+    if source_id in REGIONAL_SOURCE_FACTORIES:
+        return ingest_regional(
+            source_id=source_id,
+            output_path=output_path,
+            limit=limit,
+            persist_db=persist_db,
+        )
+
     started_at = datetime.now(UTC)
 
     adapter = get_source_adapter(source_id)
@@ -176,12 +275,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     ingest_parser = subparsers.add_parser(
         "ingest",
-        help="Fetch, normalize and persist/export a vehicle source.",
+        help="Fetch, normalize and persist/export an external source.",
     )
     ingest_parser.add_argument(
         "--source",
         required=True,
-        choices=sorted(SOURCE_FACTORIES),
+        choices=ALL_SOURCE_IDS,
     )
     ingest_parser.add_argument(
         "--output",
@@ -195,7 +294,7 @@ def build_parser() -> argparse.ArgumentParser:
     ingest_parser.add_argument(
         "--persist-db",
         action="store_true",
-        help="Persist the canonical records and run audit to DATABASE_URL.",
+        help="Persist the normalized source snapshot to DATABASE_URL.",
     )
     ingest_parser.add_argument(
         "--limit",
