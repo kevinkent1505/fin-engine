@@ -53,9 +53,11 @@ export default async function OverviewPage({
   const askingHelper =
     data.analysis.state === "database"
       ? `Based on ${snapshot.sampleSize} matching marketplace listings`
-      : data.analysis.state === "development"
-        ? `Based on ${snapshot.sampleSize} matching demo comparison rows`
-        : "Illustrative default demo data";
+      : data.analysis.state === "demo"
+        ? `Based on ${snapshot.sampleSize} synthetic POC listings`
+        : data.analysis.state === "development"
+          ? `Based on ${snapshot.sampleSize} matching demo comparison rows`
+          : "Illustrative default demo data";
 
   const metrics = [
     {
