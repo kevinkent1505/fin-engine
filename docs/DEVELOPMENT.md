@@ -10,13 +10,13 @@ This guide is the fastest path from a fresh clone to a working Fin Engine develo
 - Python 3.12+
 - `uv`
 - Docker Desktop or another Docker Compose-compatible runtime, optional
-- Neon/PostgreSQL only when testing persistence
+- Neon/PostgreSQL when testing database-backed valuation/persistence
 
 The repository currently contains three application surfaces:
 
 ```text
 apps/api        TypeScript / Fastify public API
-apps/analysis   Python / FastAPI, ingestion, normalization, persistence
+apps/analysis   Python / FastAPI, ingestion, normalization, persistence, valuation
 apps/dashboard  Next.js / Tailwind / D3 business dashboard POC
 ```
 
@@ -25,93 +25,64 @@ apps/dashboard  Next.js / Tailwind / D3 business dashboard POC
 ```bash
 git clone https://github.com/kevinkent1505/fin-engine.git
 cd fin-engine
-```
-
-Install the TypeScript/Next.js dependencies:
-
-```bash
 yarn
-```
 
-Install the Python dependencies:
-
-```bash
-cd apps/analysis
-uv sync --extra dev
-cd ../..
-```
-
-### Recommended Python version
-
-Production containers currently use Python 3.12. Keep local development aligned with that version:
-
-```bash
 cd apps/analysis
 uv python install 3.12
 uv python pin 3.12
 uv sync --extra dev
-```
-
-Verify:
-
-```bash
-uv run python --version
+cd ../..
 ```
 
 ## Environment variables
 
-Copy `.env.example` as a reference. Do not commit real credentials.
-
-Current variables:
+Do not commit real credentials.
 
 | Variable | Used by | Purpose |
 | --- | --- | --- |
-| `ANALYSIS_BASE_URL` | TypeScript API | Internal Python analysis-service URL |
-| `VEHICLE_DATA_PATH` | Python analysis | Development comparable-data CSV |
-| `DATABASE_URL` | Python ingestion/persistence | Neon/PostgreSQL connection string |
+| `ANALYSIS_BASE_URL` | TypeScript API + dashboard server | Python analysis-service URL |
+| `VEHICLE_DATA_PATH` | Python analysis | Development comparable CSV when no DB is configured |
+| `DATABASE_URL` | Python analysis + ingestion | Neon/PostgreSQL connection; also enables DB-backed valuation |
+| `DASHBOARD_VEHICLE_MAKE` | dashboard server | POC selected make |
+| `DASHBOARD_VEHICLE_MODEL` | dashboard server | POC selected model |
+| `DASHBOARD_VEHICLE_YEAR` | dashboard server | POC selected year |
+| `DASHBOARD_VEHICLE_REGION` | dashboard server | POC selected region |
 
-The dashboard POC currently requires no secrets because it reads deterministic fixtures through a server-side data-access boundary.
-
-For local API development, a typical setup is:
-
-```bash
-export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
-```
-
-For Neon persistence:
+For the dashboard, start from:
 
 ```bash
-export DATABASE_URL='postgresql://USER:PASSWORD@HOST-pooler.../neondb?sslmode=require'
+cp apps/dashboard/.env.example apps/dashboard/.env.local
 ```
 
-Prefer Neon's pooled endpoint for short-lived/serverless clients.
+The dashboard's `ANALYSIS_BASE_URL` is server-side. Do not expose it as a `NEXT_PUBLIC_*` variable.
 
-## Run the applications locally
+## Valuation data-source behavior
 
-### Dashboard only
-
-The dashboard can be run independently from the API and Python service in POC mode:
-
-```bash
-yarn dev:dashboard
-```
-
-Open:
+The Python valuation endpoint now has two explicit data paths:
 
 ```text
-http://localhost:3000
+DATABASE_URL configured
+        ↓
+latest listing observation per vehicle_record
+        ↓
+PostgreSQL / Neon
+        ↓
+comparable_market_db_v1
 ```
 
-Routes:
+If `DATABASE_URL` is not configured:
 
 ```text
-/              Executive Overview
-/vehicle       Vehicle Intelligence
-/market        Market Intelligence
-/methodology   Data & Methodology
+VEHICLE_DATA_PATH
+        ↓
+committed development CSV
+        ↓
+comparable_market_v1
 ```
 
-See [DASHBOARD.md](./DASHBOARD.md) before changing its data-access structure.
+There is no silent DB-to-CSV fallback when a database is configured but has no comparables. The API returns no-comparables instead, allowing the dashboard to label its POC fallback honestly.
+
+## Run locally
 
 ### Terminal 1: Python analysis service
 
@@ -125,63 +96,107 @@ uv run uvicorn riil_analysis.main:app \
   --port 8001
 ```
 
-Check it:
+Check:
 
 ```bash
 curl http://localhost:8001/health
 ```
 
-### Terminal 2: TypeScript public API
-
-From the repository root:
+For database-backed valuation, export Neon first:
 
 ```bash
-yarn dev:api
+export DATABASE_URL='postgresql://USER:PASSWORD@HOST-pooler.../neondb?sslmode=require'
 ```
 
-Check it:
+Then restart the analysis service in the same shell.
 
-```bash
-curl http://localhost:8000/health
-```
+### Terminal 2: business dashboard
 
-Test the current public valuation endpoint:
-
-```bash
-curl "http://localhost:8000/v1/vehicles/valuation?make=Toyota&model=Avanza&year=2023&region=Jakarta"
-```
-
-### Terminal 3: business dashboard
+From repository root:
 
 ```bash
 yarn dev:dashboard
 ```
 
-The dashboard currently does not need the other two services running. When its data layer moves to live Fin Engine queries, that dependency should be introduced inside `apps/dashboard/lib/data/`, not directly inside route components.
+Open:
 
-## Bruno
-
-The Git-tracked Bruno collection is under `bruno/`.
-
-Open that directory in Bruno and select the `local` environment.
-
-Development rule: **every public API route or contract change must update the corresponding Bruno request and assertions in the same development pass.**
-
-Internal CLI ingestion commands and dashboard-only internal query changes do not need Bruno requests unless they become public HTTP endpoints.
-
-## Run with Docker Compose
-
-From the repository root:
-
-```bash
-docker compose up --build
+```text
+http://localhost:3000
 ```
 
-This currently runs the public TypeScript API and Python FastAPI service. The dashboard is currently run with Next.js directly and is not yet included in Compose.
+The dashboard calls the Python analysis service server-side. Its visible data-status panel reports one of:
 
-The ingestion CLI and future Cloud Run Jobs use the same Python package but are separate execution modes.
+```text
+Analysis engine · Neon observations
+Analysis engine · development comparables
+Fallback POC data
+```
 
-## Run tests / builds
+Routes:
+
+```text
+/              Executive Overview
+/vehicle       Vehicle Intelligence
+/market        Market Intelligence
+/methodology   Data & Methodology
+```
+
+See [DASHBOARD.md](./DASHBOARD.md).
+
+### Terminal 3: TypeScript public API, when needed
+
+```bash
+yarn dev:api
+```
+
+Check:
+
+```bash
+curl http://localhost:8000/health
+```
+
+The dashboard does not require the public API for the POC analytical path. External/customer API contracts still belong in `apps/api`.
+
+## Database setup
+
+After setting `DATABASE_URL`:
+
+```bash
+cd apps/analysis
+uv run alembic upgrade head
+```
+
+Inspect migration state:
+
+```bash
+uv run alembic current
+uv run alembic history
+```
+
+See [DATABASE.md](./DATABASE.md).
+
+## Populate observed marketplace data
+
+A DB-backed dashboard needs listing observations in Neon that match the selected make/model/year/region.
+
+Example authorized crawl:
+
+```bash
+cd apps/analysis
+uv run fin-engine-data ingest \
+  --source mobil123_authorized_crawl \
+  --authorization-ref "permission-reference" \
+  --request-delay-seconds 2 \
+  --limit 5 \
+  --persist-db \
+  --output ../../data/generated/mobil123-small.csv
+```
+
+The analysis endpoint uses only the latest listing observation per stable source record for a current comparable snapshot, so repeated crawls do not overweight the same listing.
+
+See [INGESTION.md](./INGESTION.md).
+
+## Tests and builds
 
 Python:
 
@@ -204,138 +219,54 @@ yarn typecheck:dashboard
 yarn build:dashboard
 ```
 
-See [TESTING.md](./TESTING.md) for the testing strategy.
+Public API behavior should also be exercised through the Git-tracked Bruno collection under `bruno/`. Dashboard-only internal data-adapter changes do not require Bruno unless a public API contract changes.
 
-## Database setup
-
-After setting `DATABASE_URL`:
+## Docker Compose
 
 ```bash
-cd apps/analysis
-uv run alembic upgrade head
+docker compose up --build
 ```
 
-To inspect migration state:
-
-```bash
-uv run alembic current
-uv run alembic history
-```
-
-See [DATABASE.md](./DATABASE.md) before changing tables.
-
-## Run an ingestion source
-
-NJKB with CSV output:
-
-```bash
-cd apps/analysis
-uv run fin-engine-data ingest \
-  --source kemendagri_njkb_2025 \
-  --output ../../data/generated/njkb-2025.csv
-```
-
-Persist directly to Neon:
-
-```bash
-uv run fin-engine-data ingest \
-  --source kemendagri_njkb_2025 \
-  --persist-db
-```
-
-Authorized marketplace crawl example:
-
-```bash
-uv run fin-engine-data ingest \
-  --source mobil123_authorized_crawl \
-  --authorization-ref "permission-reference" \
-  --request-delay-seconds 2 \
-  --limit 5 \
-  --persist-db \
-  --output ../../data/generated/mobil123-small.csv
-```
-
-See [INGESTION.md](./INGESTION.md) for source contracts and crawler rules.
+Compose currently runs the public TypeScript API and Python analysis service. The dashboard is run directly through Next.js for the POC and is not yet included in Compose.
 
 ## Generated data
 
-`data/generated/` is intentionally ignored by Git. Use it for local inspection and debugging, not as the production source of truth.
-
-Production-oriented ingestion should persist canonical observations to PostgreSQL.
-
-## Common commands
-
-```bash
-# Install JS dependencies
-yarn
-
-# Dashboard development
-yarn dev:dashboard
-
-# Dashboard typecheck / build
-yarn typecheck:dashboard
-yarn build:dashboard
-
-# Python dependencies
-cd apps/analysis && uv sync --extra dev
-
-# Python tests
-cd apps/analysis && uv run pytest -v
-
-# API development
-yarn dev:api
-
-# API typecheck
-yarn typecheck:api
-
-# API build
-yarn build:api
-
-# Apply DB migrations
-cd apps/analysis && uv run alembic upgrade head
-
-# Show available ingestion sources
-cd apps/analysis && uv run fin-engine-data ingest --help
-```
+`data/generated/` is ignored by Git and intended for local inspection/debugging. Production-oriented canonical observations should persist to PostgreSQL.
 
 ## Troubleshooting
 
-### Dashboard build cannot resolve `d3`
+### Dashboard shows `Fallback POC data`
 
-Run `yarn` from the repository root after pulling the dashboard workspace changes. The root Yarn workspace owns JavaScript dependency installation.
-
-### Dashboard shows `POC fixture`
-
-That is expected. Official public-reference values and illustrative market signals are deliberately separated until live persisted observations are wired into `apps/dashboard/lib/data/index.ts`.
-
-### Public API returns `502 analysis_unavailable`
-
-The TypeScript API cannot reach the Python service. Confirm:
+Check the analysis service first:
 
 ```bash
 curl http://localhost:8001/health
 ```
 
-When both services run locally, the TypeScript API expects `localhost:8001` unless `ANALYSIS_BASE_URL` overrides it.
+Then confirm the dashboard server uses:
+
+```text
+ANALYSIS_BASE_URL=http://localhost:8001
+```
+
+If the analysis service is reachable but reports no comparables, either populate matching marketplace rows in Neon or change the dashboard POC vehicle selection to a segment that exists in the configured analysis source.
+
+### Dashboard shows development comparables
+
+The dashboard is connected to the Python analysis service, but that service does not have `DATABASE_URL` configured. This is valid for local development but must not be described as observed marketplace data.
+
+### Public API returns `502 analysis_unavailable`
+
+Confirm the Python service is running and that the API's `ANALYSIS_BASE_URL` is correct.
 
 ### Database persistence says `DATABASE_URL is not set`
 
-Set the variable in the same shell that runs the command:
-
-```bash
-export DATABASE_URL='...'
-```
+Set the variable in the same shell that runs the command.
 
 ### Alembic cannot connect to Neon
 
-Check that:
+Check the connection string, `sslmode=require`, shell escaping, Neon project state, and pooled endpoint.
 
-- the connection string is correct;
-- `sslmode=require` is present when required;
-- the password has not been accidentally shell-expanded;
-- the Neon project/branch is active;
-- you are using a compatible pooled endpoint.
+### Marketplace crawl returns zero usable listings
 
-### A marketplace crawl returns zero usable listings
-
-Start with a narrow authorized URL and a small limit. A marketplace may change its HTML or JSON-LD structure. Do not work around access controls; update the source parser against the permitted page structure and add a regression test.
+Start with a narrow authorized URL and small limit. If page structure changed, update the parser and add a regression fixture rather than bypassing access controls.
