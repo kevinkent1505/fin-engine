@@ -1,13 +1,119 @@
-import { requestAnalysisValuation } from "@/lib/data/analysis";
+import {
+  requestAnalysisValuation,
+  requestAnalysisVehicleOptions,
+} from "@/lib/data/analysis";
 import { pocDashboardData } from "@/lib/data/poc";
-import type { DashboardData, SourceDescriptor, ValuePoint } from "@/lib/types";
+import type {
+  DashboardData,
+  SourceDescriptor,
+  ValuePoint,
+  VehicleCatalog,
+  VehicleOption,
+} from "@/lib/types";
 
-const dashboardVehicle = {
+const dashboardVehicle: VehicleOption = {
   make: process.env.DASHBOARD_VEHICLE_MAKE ?? "Toyota",
   model: process.env.DASHBOARD_VEHICLE_MODEL ?? "Avanza",
   year: Number(process.env.DASHBOARD_VEHICLE_YEAR ?? "2025"),
   region: process.env.DASHBOARD_VEHICLE_REGION ?? "DKI Jakarta",
 };
+
+const pocReferenceVehicle: VehicleOption = {
+  make: pocDashboardData.snapshot.make,
+  model: pocDashboardData.snapshot.model,
+  year: pocDashboardData.snapshot.year,
+  region: pocDashboardData.snapshot.region,
+};
+
+function sameVehicle(a: VehicleOption, b: VehicleOption) {
+  return (
+    a.make.toLowerCase() === b.make.toLowerCase() &&
+    a.model.toLowerCase() === b.model.toLowerCase() &&
+    a.year === b.year &&
+    a.region.toLowerCase() === b.region.toLowerCase()
+  );
+}
+
+function sameMakeModel(a: VehicleOption, b: VehicleOption) {
+  return (
+    a.make.toLowerCase() === b.make.toLowerCase() &&
+    a.model.toLowerCase() === b.model.toLowerCase()
+  );
+}
+
+function similarRegion(a: string, b: string) {
+  const left = a.trim().toLowerCase();
+  const right = b.trim().toLowerCase();
+  return left === right || left.includes(right) || right.includes(left);
+}
+
+export async function getVehicleCatalog(): Promise<VehicleCatalog> {
+  const result = await requestAnalysisVehicleOptions();
+
+  if (result.status === "ok" && result.data.vehicles.length > 0) {
+    const databaseBacked = result.data.source === "database";
+    return {
+      options: result.data.vehicles,
+      source: result.data.source,
+      detail: databaseBacked
+        ? "Vehicle choices come from marketplace listing records currently stored in Neon."
+        : "Vehicle choices come from the development comparable dataset because the analysis service is not connected to Neon.",
+    };
+  }
+
+  return {
+    options: [pocReferenceVehicle],
+    source: "fallback",
+    detail:
+      result.status === "unavailable"
+        ? `${result.detail} Only the default demo vehicle is available until the analysis engine reconnects.`
+        : "Only the default demo vehicle is available.",
+  };
+}
+
+export function resolveVehicleSelection(
+  requested: Partial<Record<keyof VehicleOption, string | number | undefined>>,
+  options: VehicleOption[],
+): VehicleOption {
+  const requestedYear = Number(requested.year);
+  const exact = options.find(
+    (option) =>
+      typeof requested.make === "string" &&
+      typeof requested.model === "string" &&
+      typeof requested.region === "string" &&
+      Number.isFinite(requestedYear) &&
+      option.make.toLowerCase() === requested.make.toLowerCase() &&
+      option.model.toLowerCase() === requested.model.toLowerCase() &&
+      option.year === requestedYear &&
+      option.region.toLowerCase() === requested.region.toLowerCase(),
+  );
+
+  if (exact) {
+    return exact;
+  }
+
+  const configuredDefault = options.find((option) =>
+    sameVehicle(option, dashboardVehicle),
+  );
+  if (configuredDefault) {
+    return configuredDefault;
+  }
+
+  const closestConfiguredModel = options.find(
+    (option) =>
+      sameMakeModel(option, dashboardVehicle) &&
+      similarRegion(option.region, dashboardVehicle.region),
+  );
+  if (closestConfiguredModel) {
+    return closestConfiguredModel;
+  }
+
+  const sameConfiguredModel = options.find((option) =>
+    sameMakeModel(option, dashboardVehicle),
+  );
+
+  return sameConfiguredModel ?? options[0] ?? pocReferenceVehicle;
+}
 
 /**
  * Server-side data access boundary for dashboard pages.
@@ -20,16 +126,18 @@ const dashboardVehicle = {
  * Fallback path: clearly-labelled POC fixture. We never silently present the
  * fallback marketplace values as live analysis output.
  */
-export async function getDashboardData(): Promise<DashboardData> {
-  const analysisResult = await requestAnalysisValuation(dashboardVehicle);
+export async function getDashboardData(
+  vehicle: VehicleOption = dashboardVehicle,
+): Promise<DashboardData> {
+  const analysisResult = await requestAnalysisValuation(vehicle);
 
   if (analysisResult.status !== "ok") {
     return {
       ...pocDashboardData,
       analysis: {
         state: "fallback",
-        label: "Fallback POC data",
-        detail: analysisResult.detail,
+        label: "Default demo vehicle shown",
+        detail: `${analysisResult.detail} The dashboard has returned to its clearly labelled default POC vehicle rather than showing unrelated numbers for your selection.`,
       },
     };
   }
@@ -40,28 +148,24 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const listingSignal: ValuePoint = {
     label: databaseBacked
-      ? "Analysis-engine asking median"
+      ? "Marketplace asking median"
       : "Development comparable median",
     value: result.valuation.estimate,
     kind: "listing",
     confidence,
   };
 
-  const otherSignals = pocDashboardData.snapshot.values.filter(
-    (item) => item.kind !== "listing",
-  );
-
   const analysisSource: SourceDescriptor = {
     id: "fin_engine_analysis",
     name: "Fin Engine analysis engine",
     type: databaseBacked
-      ? "Neon-backed marketplace comparable valuation"
+      ? "Marketplace comparable valuation"
       : "Development comparable valuation",
     confidence,
     lastUpdated: "Current dashboard request",
     note: databaseBacked
-      ? "Median and range are calculated from the latest persisted listing observation per stable marketplace record, avoiding repeated-crawl overweighting."
-      : "The dashboard is connected to the Python analysis service, but that service is currently using the committed development comparable CSV because DATABASE_URL is not configured there.",
+      ? "The estimate uses the latest stored price for each matching marketplace listing, so repeated crawls do not count the same listing multiple times."
+      : "The dashboard is connected to the analysis service, but that service is using its development comparison dataset because Neon is not configured there.",
   };
 
   return {
@@ -71,11 +175,11 @@ export async function getDashboardData(): Promise<DashboardData> {
       state: databaseBacked ? "database" : "development",
       method: result.method,
       label: databaseBacked
-        ? "Analysis engine · Neon observations"
-        : "Analysis engine · development comparables",
+        ? "Marketplace data connected"
+        : "Demo comparison data connected",
       detail: databaseBacked
-        ? `${result.sample_size} latest marketplace listing observations are feeding the valuation snapshot.`
-        : `${result.sample_size} development comparable rows are feeding the valuation snapshot. Connect the analysis service to Neon for observed marketplace data.`,
+        ? `${result.sample_size} marketplace listings matching this vehicle are feeding the estimate.`
+        : `${result.sample_size} development comparison rows match this vehicle. Connect the analysis service to Neon for observed marketplace data.`,
     },
     snapshot: {
       ...pocDashboardData.snapshot,
@@ -83,12 +187,13 @@ export async function getDashboardData(): Promise<DashboardData> {
       model: result.vehicle.model,
       year: result.vehicle.year,
       region: result.region,
+      variant: "All matching listings for this model",
       sampleSize: result.sample_size,
       observedRange: [result.valuation.low, result.valuation.high],
       lastRefresh: databaseBacked
-        ? "Analysis engine · Neon"
-        : "Analysis engine · development CSV",
-      values: [listingSignal, ...otherSignals],
+        ? "Stored marketplace listings"
+        : "Development comparison dataset",
+      values: [listingSignal],
       priceHistory: [
         {
           date: "Current",
@@ -98,15 +203,15 @@ export async function getDashboardData(): Promise<DashboardData> {
     },
     sources: [
       ...pocDashboardData.sources.filter(
-        (source) => source.id !== "marketplace_poc",
+        (source) => source.id === "bps_vehicle_stock_2023",
       ),
       analysisSource,
     ],
   };
 }
 
-export async function getVehicleSnapshot() {
-  const data = await getDashboardData();
+export async function getVehicleSnapshot(vehicle?: VehicleOption) {
+  const data = await getDashboardData(vehicle);
   return data.snapshot;
 }
 
@@ -115,7 +220,7 @@ export async function getRegionalMarket() {
   return data.regionalMarket;
 }
 
-export async function getSources() {
-  const data = await getDashboardData();
+export async function getSources(vehicle?: VehicleOption) {
+  const data = await getDashboardData(vehicle);
   return data.sources;
 }

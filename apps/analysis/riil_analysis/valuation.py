@@ -11,6 +11,7 @@ from .database.models import VehicleObservation, VehicleRecord
 from .models import (
     ValuationBand,
     VehicleIdentity,
+    VehicleOption,
     VehicleValuationRequest,
     VehicleValuationResponse,
 )
@@ -67,6 +68,75 @@ def _valuation_response(
         sample_size=len(ordered),
         method=method,
     )
+
+
+def list_available_vehicles(data_path: str) -> list[VehicleOption]:
+    """Return distinct vehicle selections supported by the development CSV."""
+    data = load_vehicle_data(data_path)
+    available = (
+        data.select("make", "model", "year", "region")
+        .unique()
+        .sort(["make", "model", "year", "region"], descending=[False, False, True, False])
+    )
+
+    return [
+        VehicleOption(
+            make=str(row["make"]),
+            model=str(row["model"]),
+            year=int(row["year"]),
+            region=str(row["region"]),
+        )
+        for row in available.iter_rows(named=True)
+    ]
+
+
+def list_available_vehicles_from_database(database_url: str) -> list[VehicleOption]:
+    """Return distinct make/model/year/region combinations with listing evidence."""
+    engine = create_engine(
+        normalize_database_url(database_url),
+        pool_pre_ping=True,
+    )
+
+    statement = (
+        select(
+            VehicleRecord.make,
+            VehicleRecord.model,
+            VehicleRecord.year,
+            VehicleRecord.region,
+        )
+        .join(
+            VehicleObservation,
+            VehicleObservation.vehicle_record_id == VehicleRecord.id,
+        )
+        .where(
+            VehicleRecord.model.is_not(None),
+            VehicleObservation.price_kind == "listing",
+        )
+        .distinct()
+        .order_by(
+            VehicleRecord.make,
+            VehicleRecord.model,
+            VehicleRecord.year.desc(),
+            VehicleRecord.region,
+        )
+    )
+
+    try:
+        with Session(engine) as session:
+            rows = session.execute(statement).all()
+    finally:
+        engine.dispose()
+
+    return [
+        VehicleOption(
+            make=str(make),
+            model=str(model),
+            year=int(year),
+            region=str(region),
+        )
+        for make, model, year, region in rows
+        if model is not None
+    ]
 
 
 def estimate_vehicle_value(

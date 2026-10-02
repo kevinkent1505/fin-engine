@@ -15,10 +15,40 @@ from riil_analysis.models import VehicleValuationRequest
 from riil_analysis.valuation import (
     estimate_vehicle_value,
     estimate_vehicle_value_from_database,
+    list_available_vehicles,
 )
 
 
 DATA_PATH = Path(__file__).parents[3] / "data" / "sample" / "vehicles.csv"
+
+
+def test_vehicle_catalog_lists_distinct_supported_combinations() -> None:
+    options = list_available_vehicles(str(DATA_PATH))
+
+    assert any(
+        option.make == "Toyota"
+        and option.model == "Avanza"
+        and option.year == 2023
+        and option.region == "Jakarta"
+        for option in options
+    )
+    assert any(
+        option.make == "Honda"
+        and option.model == "Brio"
+        and option.year == 2023
+        and option.region == "Jakarta"
+        for option in options
+    )
+    assert len(
+        [
+            option
+            for option in options
+            if option.make == "Toyota"
+            and option.model == "Avanza"
+            and option.year == 2023
+            and option.region == "Jakarta"
+        ]
+    ) == 1
 
 
 def test_avanza_jakarta_baseline() -> None:

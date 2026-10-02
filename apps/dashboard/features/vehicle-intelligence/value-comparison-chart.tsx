@@ -14,20 +14,23 @@ const markerClass = {
 const kindLabel = {
   listing: "Marketplace asking price",
   njkb: "Official NJKB reference",
-  auction_limit: "Auction limit reference",
+  auction_limit: "Auction reference",
 };
 
 export function ValueComparisonChart({ values }: { values: ValuePoint[] }) {
   const min = Math.min(...values.map((item) => item.value)) * 0.9;
   const max = Math.max(...values.map((item) => item.value)) * 1.08;
   const x = scaleLinear().domain([min, max]).range([90, 710]);
+  const hasMultipleSignals = values.length > 1;
 
   return (
     <figure className="glass-panel min-w-0 overflow-hidden rounded-2xl p-4 sm:p-5">
       <figcaption className="mb-5">
-        <h3 className="text-sm font-semibold text-slate-950">Value signal comparison</h3>
-        <p className="mt-1 text-xs leading-5 text-slate-600">
-          Asking price, NJKB and auction limits remain separate because they represent different economic signals.
+        <h3 className="text-sm font-semibold text-slate-950">Vehicle value comparison</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-700">
+          {hasMultipleSignals
+            ? "Different reference values are shown separately because they mean different things."
+            : "Only the asking-price estimate is safely matched to this vehicle right now. Other references stay hidden until they can be matched correctly."}
         </p>
       </figcaption>
 
@@ -38,9 +41,11 @@ export function ValueComparisonChart({ values }: { values: ValuePoint[] }) {
           role="img"
           aria-labelledby="value-comparison-title value-comparison-desc"
         >
-          <title id="value-comparison-title">Vehicle value signal comparison</title>
+          <title id="value-comparison-title">Vehicle value comparison</title>
           <desc id="value-comparison-desc">
-            A comparison of marketplace asking price, official NJKB reference and auction-limit reference for the selected vehicle.
+            {hasMultipleSignals
+              ? "A comparison of the available asking-price and reference values for the selected vehicle."
+              : "The available asking-price estimate for the selected vehicle."}
           </desc>
 
           <line x1="90" x2="710" y1="170" y2="170" className="stroke-slate-300" strokeWidth="2" />

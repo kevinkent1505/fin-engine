@@ -20,44 +20,44 @@ export default async function MarketIntelligencePage() {
     <div className="space-y-6 sm:space-y-7">
       <section>
         <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-900">
-          Market intelligence
+          Market overview
         </div>
         <h1 className="mt-2 max-w-4xl text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl md:text-4xl">
-          Regional market context from public statistics.
+          See where passenger cars are concentrated across selected provinces.
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700 md:text-base">
-          This POC keeps the regional page on official BPS vehicle-stock data rather than inventing regional price estimates. Live regional pricing can be added later from analysis-engine marketplace observations.
+          This page uses official BPS vehicle-count data. It shows the size of the passenger-car population in each province, not vehicle prices or sales volumes.
         </p>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Market intelligence metrics">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Regional market summary">
         <MetricCard
           metric={{
-            label: "Passenger cars in selected provinces",
+            label: "Passenger cars shown",
             value: formatNumberCompact(totalPassengerCars),
-            helper: "BPS 2023 public-table subset",
+            helper: "Total across the provinces included in this demo",
             tone: "positive",
           }}
         />
         <MetricCard
           metric={{
-            label: "Largest selected market",
+            label: "Province with the most cars",
             value: largest.region,
             helper: `${formatNumberCompact(largest.passengerCars)} passenger cars`,
           }}
         />
         <MetricCard
           metric={{
-            label: "Regional coverage",
+            label: "Provinces included",
             value: String(data.regionalMarket.length),
-            helper: "Selected provinces in the public-data POC slice",
+            helper: "Number of provinces shown in this demo view",
           }}
         />
         <MetricCard
           metric={{
-            label: "Average selected market",
+            label: "Average cars per province",
             value: formatNumberCompact(averagePassengerCars),
-            helper: "Passenger cars per selected province",
+            helper: "Simple average across the provinces shown",
           }}
         />
       </section>
@@ -66,9 +66,9 @@ export default async function MarketIntelligencePage() {
         <RegionalMarketChart data={data.regionalMarket} />
 
         <article className="glass-panel min-w-0 rounded-2xl p-4 sm:p-5">
-          <h2 className="text-sm font-semibold text-slate-950">Regional comparison</h2>
+          <h2 className="text-sm font-semibold text-slate-950">Province-by-province comparison</h2>
           <p className="mt-1 text-xs leading-5 text-slate-700">
-            These counts are official public BPS references. No synthetic regional asking prices are shown on this page.
+            These are official public counts of passenger cars. A larger number means more passenger cars are registered in that province.
           </p>
 
           <div
@@ -77,12 +77,12 @@ export default async function MarketIntelligencePage() {
             aria-label="Scrollable regional comparison table"
           >
             <table className="w-full min-w-[28rem] border-collapse text-left text-xs">
-              <caption className="sr-only">Regional passenger-car stock and share of the selected POC market</caption>
+              <caption className="sr-only">Regional passenger-car counts and each province&apos;s share of the provinces shown</caption>
               <thead className="bg-slate-100/90 text-slate-800">
                 <tr>
                   <th scope="col" className="px-3 py-3 font-bold">Province</th>
                   <th scope="col" className="px-3 py-3 text-right font-bold">Passenger cars</th>
-                  <th scope="col" className="px-3 py-3 text-right font-bold">Selected share</th>
+                  <th scope="col" className="px-3 py-3 text-right font-bold">Share of this view</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/90">
@@ -107,26 +107,24 @@ export default async function MarketIntelligencePage() {
       </section>
 
       <section className="glass-panel rounded-2xl p-4 sm:p-5">
-        <div className="grid gap-6 md:grid-cols-3">
+        <h2 className="text-sm font-semibold text-slate-950">What could be added later</h2>
+        <div className="mt-5 grid gap-6 md:grid-cols-3">
           <article>
-            <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-700">What this can become</div>
-            <div className="mt-2 text-lg font-semibold text-slate-950">Market depth</div>
+            <div className="text-lg font-semibold text-slate-950">How easy a vehicle is to sell</div>
             <p className="mt-2 text-sm leading-6 text-slate-700">
-              Combine public vehicle population with active marketplace listings and observed turnover to estimate how deep each regional market is.
+              Combine the number of cars with active listings and how quickly listings disappear to estimate how active each regional market is.
             </p>
           </article>
           <article>
-            <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-700">What this can become</div>
-            <div className="mt-2 text-lg font-semibold text-slate-950">Liquidity signal</div>
+            <div className="text-lg font-semibold text-slate-950">How quickly prices move</div>
             <p className="mt-2 text-sm leading-6 text-slate-700">
-              Use repeated listing observations, disappearance and price reductions to build an evidence-based liquidity feature.
+              Track repeated listings and price reductions to see whether sellers are lowering prices over time.
             </p>
           </article>
           <article>
-            <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-700">What this can become</div>
-            <div className="mt-2 text-lg font-semibold text-slate-950">Portfolio monitoring</div>
+            <div className="text-lg font-semibold text-slate-950">Monitor many vehicles at once</div>
             <p className="mt-2 text-sm leading-6 text-slate-700">
-              Track collateral value and downside changes across model, year and geography instead of reviewing one asset at a time.
+              Compare value changes across many makes, models, years and locations instead of checking one vehicle at a time.
             </p>
           </article>
         </div>

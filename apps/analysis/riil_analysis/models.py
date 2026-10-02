@@ -14,6 +14,18 @@ class VehicleIdentity(BaseModel):
     year: int
 
 
+class VehicleOption(BaseModel):
+    make: str
+    model: str
+    year: int
+    region: str
+
+
+class VehicleCatalogResponse(BaseModel):
+    vehicles: list[VehicleOption]
+    source: str
+
+
 class ValuationBand(BaseModel):
     estimate: int = Field(ge=0)
     low: int = Field(ge=0)

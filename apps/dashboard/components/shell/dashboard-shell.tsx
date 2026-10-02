@@ -23,7 +23,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 Fin Engine
               </div>
               <div className="hidden text-[11px] font-medium text-slate-600 sm:block">
-                Collateral intelligence
+                Vehicle value explorer
               </div>
             </div>
           </div>
