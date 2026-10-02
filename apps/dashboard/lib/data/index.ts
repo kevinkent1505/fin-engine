@@ -60,6 +60,15 @@ export async function getVehicleCatalog(): Promise<VehicleCatalog> {
       };
     }
 
+    if (result.data.source === "database_mixed") {
+      return {
+        options: result.data.vehicles,
+        source: "database_mixed",
+        detail:
+          "Vehicle choices include both real persisted marketplace records and synthetic POC records. Each selected valuation is labelled according to the evidence actually used.",
+      };
+    }
+
     const databaseBacked = result.data.source === "database";
     return {
       options: result.data.vehicles,
