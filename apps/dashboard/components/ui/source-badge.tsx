@@ -8,8 +8,8 @@ const confidenceClass: Record<DataConfidence, string> = {
 
 const confidenceLabel: Record<DataConfidence, string> = {
   official: "Official source",
-  observed: "Observed data",
-  illustrative: "Illustrative POC data",
+  observed: "Marketplace data",
+  illustrative: "Demo only",
 };
 
 export function SourceBadge({ confidence }: { confidence: DataConfidence }) {
@@ -18,7 +18,7 @@ export function SourceBadge({ confidence }: { confidence: DataConfidence }) {
       className={`inline-flex min-h-8 items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em] ${confidenceClass[confidence]}`}
       aria-label={confidenceLabel[confidence]}
     >
-      {confidence}
+      {confidenceLabel[confidence]}
     </span>
   );
 }
