@@ -2,24 +2,29 @@ import type { Metric } from "@/lib/types";
 
 const toneClass = {
   default: "text-slate-950",
-  positive: "text-emerald-700",
-  warning: "text-amber-700",
+  positive: "text-emerald-800",
+  warning: "text-amber-800",
 };
 
 export function MetricCard({ metric }: { metric: Metric }) {
   const tone = metric.tone ?? "default";
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+    <article
+      className="glass-panel min-w-0 rounded-2xl p-4 sm:p-5"
+      aria-label={`${metric.label}: ${metric.value}`}
+    >
+      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-600 sm:text-xs">
         {metric.label}
       </div>
-      <div className={`mt-3 text-3xl font-semibold tracking-tight ${toneClass[tone]}`}>
+      <div
+        className={`mt-3 break-words text-2xl font-semibold tracking-tight sm:text-3xl ${toneClass[tone]}`}
+      >
         {metric.value}
       </div>
       {metric.helper ? (
-        <div className="mt-2 text-sm leading-5 text-slate-500">{metric.helper}</div>
+        <p className="mt-2 text-sm leading-5 text-slate-600">{metric.helper}</p>
       ) : null}
-    </div>
+    </article>
   );
 }
