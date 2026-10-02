@@ -1,18 +1,24 @@
 import type { DashboardData } from "@/lib/types";
 
 /**
- * POC data policy
+ * Fallback/reference data used only when the Python analysis service cannot
+ * provide a valuation snapshot.
  *
  * Official/public-reference values are explicitly marked `official`.
- * Marketplace and auction figures below are illustrative until the live
- * ingestion jobs are connected to the dashboard query layer.
+ * Marketplace and auction figures below are illustrative and must remain
+ * visibly labelled as such.
  *
  * BPS values are from the public 2023 provincial motor-vehicle table.
  * The NJKB value is from Permendagri No. 7 Tahun 2025 for Toyota Avanza
  * 1.5 Veloz M/T, production year 2025.
  */
 export const pocDashboardData: DashboardData = {
-  mode: "poc",
+  mode: "fallback",
+  analysis: {
+    state: "fallback",
+    label: "Fallback POC data",
+    detail: "The analysis engine did not return a usable valuation. Illustrative market fixtures are being shown instead.",
+  },
   snapshot: {
     make: "Toyota",
     model: "Avanza",
@@ -21,7 +27,7 @@ export const pocDashboardData: DashboardData = {
     variant: "1.5 Veloz M/T",
     sampleSize: 42,
     observedRange: [205_000_000, 252_000_000],
-    lastRefresh: "POC fixture",
+    lastRefresh: "Fallback POC fixture",
     values: [
       {
         label: "Indicative asking median",
@@ -84,8 +90,8 @@ export const pocDashboardData: DashboardData = {
       name: "Marketplace observations",
       type: "Asking-price signal",
       confidence: "illustrative",
-      lastUpdated: "POC fixture",
-      note: "UI placeholder until authorized OLX, Mobil123 and Carmudi crawl jobs are connected to the query layer.",
+      lastUpdated: "Fallback fixture",
+      note: "Fallback only. The primary dashboard path now requests valuation output from the Fin Engine analysis service.",
     },
     {
       id: "auction_poc",
@@ -93,7 +99,7 @@ export const pocDashboardData: DashboardData = {
       type: "Downside / auction-limit signal",
       confidence: "illustrative",
       lastUpdated: "POC fixture",
-      note: "UI placeholder until the DJP auction ingestion history is connected to the query layer.",
+      note: "UI placeholder until persisted government auction history is exposed through the analysis layer.",
     },
   ],
 };
