@@ -13,32 +13,32 @@ export default async function VehicleIntelligencePage() {
   const auction = snapshot.values.find((item) => item.kind === "auction_limit")!;
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6 sm:space-y-7">
       <section>
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+        <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-800">
           Vehicle intelligence
         </div>
         <div className="mt-2 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl md:text-4xl">
               {snapshot.make} {snapshot.model} {snapshot.year}
             </h1>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm text-slate-600">
               {snapshot.variant} · {snapshot.region}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
+            <span className="inline-flex min-h-9 items-center rounded-full border border-white/70 bg-white/75 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md">
               {snapshot.sampleSize} comparables
             </span>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
+            <span className="inline-flex min-h-9 items-center rounded-full border border-white/70 bg-white/75 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md">
               POC selection
             </span>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Vehicle intelligence metrics">
         <MetricCard
           metric={{
             label: "Indicative asking median",
@@ -71,56 +71,58 @@ export default async function VehicleIntelligencePage() {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
+      <section className="grid gap-5 xl:grid-cols-2" aria-label="Vehicle charts">
         <ValueComparisonChart values={snapshot.values} />
         <PriceHistoryChart data={snapshot.priceHistory} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.82fr_1.18fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Collateral signal summary</h2>
+        <article className="glass-panel rounded-2xl p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-slate-950">Collateral signal summary</h2>
           <div className="mt-5 space-y-5">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Reference floor</div>
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-600">Reference floor</div>
               <div className="mt-1 text-xl font-semibold text-slate-950">{formatRupiahCompact(njkb.value)}</div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
+              <p className="mt-1 text-xs leading-5 text-slate-600">
                 Official NJKB benchmark. It is not itself a retail market price.
               </p>
             </div>
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Indicative market signal</div>
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-600">Indicative market signal</div>
               <div className="mt-1 text-xl font-semibold text-slate-950">{formatRupiahCompact(asking.value)}</div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
+              <p className="mt-1 text-xs leading-5 text-slate-600">
                 Marketplace asking-price median in the POC. Replace with live authorized observations before external decision use.
               </p>
             </div>
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Downside signal</div>
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-600">Downside signal</div>
               <div className="mt-1 text-xl font-semibold text-slate-950">{formatRupiahCompact(auction.value)}</div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
+              <p className="mt-1 text-xs leading-5 text-slate-600">
                 Auction-limit style reference. It should not be represented as a confirmed transaction value.
               </p>
             </div>
           </div>
-        </div>
+        </article>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Evidence behind this screen</h2>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
+        <article className="glass-panel rounded-2xl p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-slate-950">Evidence behind this screen</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-600">
             The dashboard keeps provenance visible so a business user can distinguish official evidence from illustrative POC content.
           </p>
           <div className="mt-5 space-y-3">
             {data.sources.slice(0, 4).map((source) => (
-              <div key={source.id} className="flex items-start justify-between gap-5 rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">{source.name}</div>
-                  <div className="mt-1 text-xs text-slate-500">{source.note}</div>
+              <div key={source.id} className="glass-subpanel flex flex-col gap-3 rounded-xl p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
+                <div className="min-w-0">
+                  <div className="break-words text-sm font-semibold text-slate-950">{source.name}</div>
+                  <div className="mt-1 text-xs leading-5 text-slate-600">{source.note}</div>
                 </div>
-                <SourceBadge confidence={source.confidence} />
+                <div className="shrink-0">
+                  <SourceBadge confidence={source.confidence} />
+                </div>
               </div>
             ))}
           </div>
-        </div>
+        </article>
       </section>
     </div>
   );
