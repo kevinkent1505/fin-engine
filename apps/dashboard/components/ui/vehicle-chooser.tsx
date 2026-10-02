@@ -12,6 +12,15 @@ function uniqueNumbers(values: number[]) {
   return [...new Set(values)].sort((a, b) => b - a);
 }
 
+function sameOption(a: VehicleOption, b: VehicleOption) {
+  return (
+    a.make === b.make &&
+    a.model === b.model &&
+    a.year === b.year &&
+    a.region === b.region
+  );
+}
+
 function firstMatching(
   options: VehicleOption[],
   make: string,
@@ -33,40 +42,48 @@ export function VehicleChooser({
   catalog: VehicleCatalog;
   selected: VehicleOption;
 }) {
+  const options = useMemo(
+    () =>
+      catalog.options.some((option) => sameOption(option, selected))
+        ? catalog.options
+        : [selected, ...catalog.options],
+    [catalog.options, selected],
+  );
+
   const [make, setMake] = useState(selected.make);
   const [model, setModel] = useState(selected.model);
   const [year, setYear] = useState(selected.year);
   const [region, setRegion] = useState(selected.region);
 
   const makes = useMemo(
-    () => unique(catalog.options.map((option) => option.make)),
-    [catalog.options],
+    () => unique(options.map((option) => option.make)),
+    [options],
   );
 
   const models = useMemo(
     () =>
       unique(
-        catalog.options
+        options
           .filter((option) => option.make === make)
           .map((option) => option.model),
       ),
-    [catalog.options, make],
+    [options, make],
   );
 
   const years = useMemo(
     () =>
       uniqueNumbers(
-        catalog.options
+        options
           .filter((option) => option.make === make && option.model === model)
           .map((option) => option.year),
       ),
-    [catalog.options, make, model],
+    [options, make, model],
   );
 
   const regions = useMemo(
     () =>
       unique(
-        catalog.options
+        options
           .filter(
             (option) =>
               option.make === make &&
@@ -75,11 +92,11 @@ export function VehicleChooser({
           )
           .map((option) => option.region),
       ),
-    [catalog.options, make, model, year],
+    [options, make, model, year],
   );
 
   function chooseMake(nextMake: string) {
-    const next = firstMatching(catalog.options, nextMake);
+    const next = firstMatching(options, nextMake);
     if (!next) return;
     setMake(next.make);
     setModel(next.model);
@@ -88,7 +105,7 @@ export function VehicleChooser({
   }
 
   function chooseModel(nextModel: string) {
-    const next = firstMatching(catalog.options, make, nextModel);
+    const next = firstMatching(options, make, nextModel);
     if (!next) return;
     setModel(next.model);
     setYear(next.year);
@@ -96,7 +113,7 @@ export function VehicleChooser({
   }
 
   function chooseYear(nextYear: number) {
-    const next = firstMatching(catalog.options, make, model, nextYear);
+    const next = firstMatching(options, make, model, nextYear);
     if (!next) return;
     setYear(next.year);
     setRegion(next.region);
