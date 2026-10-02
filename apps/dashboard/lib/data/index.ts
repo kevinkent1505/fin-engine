@@ -155,7 +155,6 @@ export async function getDashboardData(
   const observedDatabaseBacked = result.method === "comparable_market_db_v1";
   const syntheticDatabaseBacked =
     result.method === "comparable_market_demo_db_v1";
-  const databaseBacked = observedDatabaseBacked || syntheticDatabaseBacked;
   const confidence = observedDatabaseBacked ? "observed" : "illustrative";
 
   const listingSignal: ValuePoint = {
