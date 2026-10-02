@@ -7,7 +7,7 @@ from riil_analysis.scrapers.base import VehicleSourceAdapter
 
 DEMO_LISTING_SOURCE = "marketplace_demo_seed"
 DEMO_GENERATOR = "marketplace_demo_v1"
-DEMO_REGION = "DKI Jakarta"
+DEMO_REGION = "Jakarta"
 
 # Deliberately synthetic asking-price anchors for the POC. These are not
 # scraped prices, transaction prices, or claims about current market value.
