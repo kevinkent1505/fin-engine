@@ -1,12 +1,13 @@
 # Fin Engine Documentation
 
-Use this directory for detailed business, developer, and operator documentation. The repository root README is the concise entry point.
+Use this directory for detailed business, developer, product, and operator documentation. The repository root README is the concise entry point.
 
 ## Documentation map
 
 | Document | Use it for |
 | --- | --- |
 | [BUSINESS.md](./BUSINESS.md) | business overview, customer use cases, data-signal meaning, product limitations, commercial model and roadmap |
+| [DASHBOARD.md](./DASHBOARD.md) | business-dashboard structure, Next.js/Tailwind/D3 conventions, POC data policy and migration to live data |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | local setup, environment variables, running services, common commands and troubleshooting |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | system boundaries, TypeScript/Python ownership, data flows and design principles |
 | [INGESTION.md](./INGESTION.md) | source adapters, raw/canonical contracts, crawler behavior, quality and adding new sources |
@@ -25,6 +26,8 @@ README.md
   ↓
 BUSINESS.md
   ↓
+DASHBOARD.md for the POC product surface
+  ↓
 SOURCES.md if deeper data-source context is needed
 ```
 
@@ -38,6 +41,16 @@ DEVELOPMENT.md
 ARCHITECTURE.md
   ↓
 relevant specialist guide
+```
+
+Working on the business dashboard:
+
+```text
+BUSINESS.md
+DASHBOARD.md
+ARCHITECTURE.md
+SOURCES.md
+TESTING.md
 ```
 
 Working on a crawler/source:
@@ -76,6 +89,6 @@ Bruno collection
 
 ## Documentation rule
 
-If a code change alters a business-facing product capability, developer-facing contract, deployment assumption, source semantic, CLI flag, environment variable, schema, or public API, update the relevant documentation in the same change set.
+If a code change alters a business-facing product capability, developer-facing contract, deployment assumption, source semantic, CLI flag, environment variable, schema, dashboard data interpretation, or public API, update the relevant documentation in the same change set.
 
 Keep the root README short enough that a new stakeholder can understand the project and get to the correct detailed guide quickly.
