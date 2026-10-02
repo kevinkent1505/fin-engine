@@ -1,11 +1,12 @@
-# Fin Engine Developer Documentation
+# Fin Engine Documentation
 
-Use this directory for detailed developer and operator documentation. The repository root README is the concise entry point.
+Use this directory for detailed business, developer, and operator documentation. The repository root README is the concise entry point.
 
 ## Documentation map
 
 | Document | Use it for |
 | --- | --- |
+| [BUSINESS.md](./BUSINESS.md) | business overview, customer use cases, data-signal meaning, product limitations, commercial model and roadmap |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | local setup, environment variables, running services, common commands and troubleshooting |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | system boundaries, TypeScript/Python ownership, data flows and design principles |
 | [INGESTION.md](./INGESTION.md) | source adapters, raw/canonical contracts, crawler behavior, quality and adding new sources |
@@ -16,6 +17,16 @@ Use this directory for detailed developer and operator documentation. The reposi
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | contribution workflow and change checklists |
 
 ## Start here
+
+Business, product, strategy, sales or partnership stakeholder:
+
+```text
+README.md
+  ↓
+BUSINESS.md
+  ↓
+SOURCES.md if deeper data-source context is needed
+```
 
 New developer:
 
@@ -65,6 +76,6 @@ Bruno collection
 
 ## Documentation rule
 
-If a code change alters a developer-facing contract, deployment assumption, source semantic, CLI flag, environment variable, schema, or public API, update the relevant documentation in the same change set.
+If a code change alters a business-facing product capability, developer-facing contract, deployment assumption, source semantic, CLI flag, environment variable, schema, or public API, update the relevant documentation in the same change set.
 
-Keep the root README short enough that a new developer can understand the project and get to the correct detailed guide quickly.
+Keep the root README short enough that a new stakeholder can understand the project and get to the correct detailed guide quickly.
