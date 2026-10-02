@@ -40,6 +40,13 @@ export default async function VehicleIntelligencePage({
         ? `Based on ${snapshot.sampleSize} matching demo comparison rows`
         : "Illustrative default demo data";
 
+  const actualSelection = {
+    make: snapshot.make,
+    model: snapshot.model,
+    year: snapshot.year,
+    region: snapshot.region,
+  };
+
   return (
     <div className="space-y-6 sm:space-y-7">
       <section>
@@ -66,7 +73,7 @@ export default async function VehicleIntelligencePage({
         </div>
       </section>
 
-      <VehicleChooser catalog={catalog} selected={selected} />
+      <VehicleChooser catalog={catalog} selected={actualSelection} />
 
       <AnalysisStatus status={data.analysis} />
 
