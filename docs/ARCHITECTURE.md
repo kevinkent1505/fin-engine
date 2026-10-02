@@ -1,6 +1,6 @@
 # Architecture
 
-Fin Engine is a B2B financial-data and analysis platform. The codebase deliberately separates product/API concerns from data/analytics concerns.
+Fin Engine is a B2B financial-data and analysis platform. The codebase deliberately separates product/API concerns, presentation concerns and data/analytics concerns.
 
 ## System boundary
 
@@ -19,16 +19,18 @@ Neon PostgreSQL
         ↓
 Python analysis / feature engine
         ↓
-TypeScript public API
+TypeScript API / dashboard data layer
         ↓
-B2B clients
+B2B API clients + Next.js business dashboard
 ```
 
 The current public valuation path still uses a small development CSV. PostgreSQL-backed analytical queries are the next evolution, not something the current API already does.
 
-## Language ownership
+The current business dashboard is also intentionally in POC mode: it combines official public-reference data with clearly labeled illustrative market fixtures until live persisted observations are connected.
 
-### TypeScript: control plane
+## Application ownership
+
+### TypeScript public API: control plane
 
 `apps/api` owns customer-facing API infrastructure:
 
@@ -40,6 +42,21 @@ The current public valuation path still uses a small development CSV. PostgreSQL
 - later: tenants, API keys, authorization, quotas, usage, billing and webhooks.
 
 The current implementation uses Fastify and Zod.
+
+### Next.js dashboard: business presentation plane
+
+`apps/dashboard` owns the business-facing POC experience:
+
+- executive overview;
+- vehicle-intelligence presentation;
+- regional market-intelligence presentation;
+- provenance / methodology presentation;
+- business-friendly charts and summaries;
+- server-side dashboard data-access boundary.
+
+The dashboard currently uses Next.js, Tailwind CSS and D3.
+
+It must not own crawler code, normalization rules, valuation formulas or underwriting decision logic.
 
 ### Python: intelligence plane
 
@@ -59,9 +76,11 @@ The current service uses FastAPI, Pydantic and Polars. Persistence uses SQLAlche
 
 ### Rule
 
-Do not duplicate analytical formulas or normalization rules in TypeScript.
+Do not duplicate analytical formulas or normalization rules in TypeScript/Next.js.
 
 Do not put tenant, billing or public API-product logic inside Python analytical modules.
+
+Keep the dashboard behind a data-access boundary so UI routes do not depend directly on persistence implementation details.
 
 ## Repository layout
 
@@ -69,6 +88,11 @@ Do not put tenant, billing or public API-product logic inside Python analytical 
 fin-engine/
 ├── apps/
 │   ├── api/                         # TypeScript / Fastify public API
+│   ├── dashboard/                   # Next.js business dashboard POC
+│   │   ├── app/                     # route/layout layer
+│   │   ├── components/              # generic presentation primitives
+│   │   ├── features/                # domain-specific dashboard features
+│   │   └── lib/data/                # server-side data-access boundary
 │   └── analysis/                    # Python intelligence/data service
 │       ├── migrations/              # Alembic migrations
 │       ├── riil_analysis/
@@ -88,6 +112,8 @@ fin-engine/
 ├── docs/
 └── docker-compose.yml
 ```
+
+See [DASHBOARD.md](./DASHBOARD.md) for the dashboard-specific structure.
 
 ## Public API flow
 
@@ -116,6 +142,35 @@ invalid query        → 400 invalid_request
 no comparables       → 404 no_comparables
 analysis unavailable → 502 analysis_unavailable
 ```
+
+## Dashboard flow
+
+Current POC flow:
+
+```text
+official public-reference fixtures
++ illustrative business fixtures
+              ↓
+apps/dashboard/lib/data/index.ts
+              ↓
+Next.js server pages
+              ↓
+React + D3 presentation components
+```
+
+Target flow:
+
+```text
+Neon / internal Fin Engine queries
+              ↓
+apps/dashboard/lib/data/index.ts
+              ↓
+Next.js server pages
+              ↓
+React + D3 presentation components
+```
+
+The route/page layer should not care which data source is behind `lib/data`.
 
 ## Ingestion flow
 
@@ -155,7 +210,7 @@ Current `price_kind` values:
 | `transaction` | reserved for future confirmed transaction values |
 | `reference` | generic reference value when a source does not fit a stronger type |
 
-Never silently merge these into one undifferentiated "market price" column in analytical logic.
+Never silently merge these into one undifferentiated "market price" column in analytical logic or dashboard presentation.
 
 A future feature engine may compare signals, for example:
 
@@ -253,6 +308,8 @@ Neon PostgreSQL
 
 Important: the repository currently has the persistence layer, but a dedicated Cloud Run Job image/configuration has not yet been committed. Treat Cloud Run as the deployment target, not as an already-live component.
 
+The dashboard deployment target can remain independent from batch ingestion. It can later be hosted on a Next.js-capable platform or Google Cloud once the product/deployment constraints are clearer.
+
 See [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Design principles
@@ -261,9 +318,10 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md).
 2. **Append observations.** Do not overwrite useful history.
 3. **Separate signal semantics.** `listing`, `njkb`, `auction_limit` and `transaction` are not interchangeable.
 4. **Keep source parsing isolated.** A marketplace layout change should not force changes throughout the analytical stack.
-5. **Keep analytical logic in Python.** Public API concerns remain in TypeScript.
-6. **Prefer simple infrastructure until scale requires more.** PostgreSQL before ClickHouse; sequential jobs before Kafka/Kubernetes.
-7. **Version interfaces, not implementation details.** Public API and source contracts should be explicit and testable.
+5. **Keep analytical logic in Python.** Public API and presentation concerns remain in TypeScript/Next.js.
+6. **Keep presentation behind a data layer.** Dashboard routes should not know persistence implementation details.
+7. **Prefer simple infrastructure until scale requires more.** PostgreSQL before ClickHouse; sequential jobs before Kafka/Kubernetes.
+8. **Version interfaces, not implementation details.** Public API and source contracts should be explicit and testable.
 
 ## Planned evolution
 
@@ -273,6 +331,7 @@ Near-term:
 Cloud Run Jobs
 → scheduled multi-source collection
 → PostgreSQL-backed feature queries
+→ replace dashboard POC fixtures with observed data
 → market-comparable valuation
 → API authentication and tenant layer
 ```
