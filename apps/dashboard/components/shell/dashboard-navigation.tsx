@@ -29,7 +29,7 @@ export function DashboardNavigation({
               aria-current={active ? "page" : undefined}
               className={`flex min-h-11 items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
                 active
-                  ? "border border-white/20 bg-white/16 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]"
+                  ? "border border-white/20 bg-white/[0.16] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]"
                   : "border border-transparent text-slate-300 hover:border-white/10 hover:bg-white/10 hover:text-white"
               }`}
             >
