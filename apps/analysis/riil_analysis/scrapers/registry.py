@@ -17,6 +17,9 @@ from riil_analysis.scrapers.sources.djp_vehicle_auction_limits import (
 from riil_analysis.scrapers.sources.kemendagri_njkb_2025 import (
     KemendagriNjkb2025Adapter,
 )
+from riil_analysis.scrapers.sources.marketplace_demo_seed import (
+    MarketplaceDemoSeedAdapter,
+)
 
 
 SOURCE_FACTORIES: dict[str, Callable[[], VehicleSourceAdapter]] = {
@@ -24,6 +27,7 @@ SOURCE_FACTORIES: dict[str, Callable[[], VehicleSourceAdapter]] = {
     CarmudiAuthorizedFeedAdapter.source_id: CarmudiAuthorizedFeedAdapter,
     DjpVehicleAuctionLimitsAdapter.source_id: DjpVehicleAuctionLimitsAdapter,
     KemendagriNjkb2025Adapter.source_id: KemendagriNjkb2025Adapter,
+    MarketplaceDemoSeedAdapter.source_id: MarketplaceDemoSeedAdapter,
     Mobil123AuthorizedCrawler.source_id: Mobil123AuthorizedCrawler,
     Mobil123AuthorizedFeedAdapter.source_id: Mobil123AuthorizedFeedAdapter,
     OlxAuthorizedCrawler.source_id: OlxAuthorizedCrawler,
