@@ -2,28 +2,21 @@
 
 The Fin Engine business dashboard is a Next.js proof of concept for demonstrating vehicle collateral intelligence to product, strategy, sales, lenders, leasing companies, and design partners.
 
-The dashboard is intentionally separate from the public API and Python analysis service:
-
-```text
-apps/
-├── api/          TypeScript / Fastify public API
-├── analysis/     Python ingestion, normalization, persistence and analytics
-└── dashboard/    Next.js business-facing POC
-```
-
 The dashboard is a presentation and workflow surface. It must not become a second analytics engine.
 
 ```text
-Python analysis / persisted data
+marketplace / official sources
             ↓
-TypeScript API or server-side query layer
+Python ingestion + Neon
             ↓
-Next.js dashboard
+Python analysis service
             ↓
-business user
+Next.js server-side data adapter
+            ↓
+business dashboard
 ```
 
-Do not duplicate valuation formulas, source normalization rules, crawler logic, or underwriting rules inside the dashboard.
+The TypeScript public API remains the external product API. For the POC, the dashboard talks to the internal Python analysis service server-side so the UI can demonstrate the actual analytical path without exposing internal endpoints or credentials in browser code.
 
 ## Code structure
 
@@ -42,6 +35,7 @@ apps/dashboard/
 │   │   ├── dashboard-shell.tsx
 │   │   └── dashboard-navigation.tsx
 │   └── ui/
+│       ├── analysis-status.tsx
 │       ├── metric-card.tsx
 │       └── source-badge.tsx
 │
@@ -54,17 +48,16 @@ apps/dashboard/
 │
 └── lib/
     ├── data/
-    │   ├── index.ts              # server-side data-access boundary
-    │   └── poc.ts                # deterministic POC fixtures
+    │   ├── analysis.ts           # server-side Python analysis client
+    │   ├── index.ts              # dashboard data composition boundary
+    │   └── poc.ts                # official context + explicit fallback fixture
     ├── format.ts
     └── types.ts
 ```
 
-Use `components/ui` only for generic presentation primitives. Domain-specific business visualizations belong in `features/<domain>`.
+Use `components/ui` for generic presentation primitives. Domain-specific business visualizations belong in `features/<domain>`.
 
-## Data-access boundary
-
-Pages should not know whether their data came from a fixture, Neon PostgreSQL, the Fin Engine API, or a future analytics endpoint.
+## Data path
 
 Pages call:
 
@@ -72,53 +65,55 @@ Pages call:
 const data = await getDashboardData();
 ```
 
-The POC currently resolves that call from `lib/data/poc.ts`.
-
-Later, replace the implementation behind `lib/data/index.ts` rather than rewriting the routes:
+`lib/data/index.ts` then requests the Python analysis service:
 
 ```text
-POC fixture                Neon / Fin Engine API
-    ↓                              ↓
-lib/data/index.ts    →      lib/data/index.ts
-    ↓                              ↓
-Next.js pages               same Next.js pages
+POST /internal/v1/vehicles/valuation
 ```
 
-Do not expose Neon credentials to browser-side code.
+The analysis service chooses its valuation source:
 
-## Current pages
+```text
+DATABASE_URL configured
+        ↓
+latest listing observation per vehicle_record in PostgreSQL / Neon
+        ↓
+comparable_market_db_v1
 
-### Executive Overview
+DATABASE_URL not configured
+        ↓
+committed development comparable CSV
+        ↓
+comparable_market_v1
+```
 
-Answers: **What is the collateral-intelligence story at a glance?**
+The dashboard labels these states separately:
 
-Shows indicative asking price, official NJKB, market/NJKB relationship, auction/asking relationship, selected vehicle, regional passenger-car stock, and visible provenance.
+```text
+database     analysis engine + persisted marketplace observations
+development  analysis engine + committed development comparables
+fallback     analysis unavailable / no comparable result; explicit POC fixture
+```
 
-### Vehicle Intelligence
+The fallback must never be silently represented as live analysis output.
 
-Answers: **What evidence do we have about this specific vehicle segment?**
+## Why the database query uses latest observations
 
-Shows vehicle/variant/year/region, asking-price signal, NJKB reference, downside signal, observed range, price-history visualization, and source evidence.
+Crawler history is append-only, so one marketplace listing may have many observations across repeated runs. A current valuation snapshot must not overweight a listing just because it has been crawled more often.
 
-### Market Intelligence
-
-Answers: **How does regional market context change the collateral picture?**
-
-Shows BPS passenger-car stock, selected regional coverage, regional comparison, and future market-depth/liquidity/portfolio-monitoring concepts.
-
-### Data & Methodology
-
-Answers: **What does each number mean and where did it come from?**
-
-Shows signal definitions, source registry, confidence labels, POC limitations, and validation steps.
+The database-backed valuation therefore uses only the latest `listing` observation for each stable `vehicle_record` before calculating the comparable distribution.
 
 ## POC data policy
 
-The dashboard currently combines official public references with clearly marked illustrative business signals.
+The dashboard now separates three categories of evidence.
 
-Official examples include BPS passenger-car counts and Kemendagri NJKB values.
+**Analysis-engine asking-value signal:** comes from the Python service. It is marked `observed` when database-backed and `illustrative` when the service is using development comparables.
 
-Illustrative POC values currently include marketplace asking-price median/range/history, regional asking-price medians, and auction/downside values until repeated live observations are connected to the query layer.
+**Official public context:** BPS passenger-car counts and Kemendagri NJKB references remain official reference data.
+
+**Still illustrative:** the auction/downside signal and fallback price history remain POC placeholders until those histories are exposed through the analysis API.
+
+Regional Market Intelligence deliberately uses official BPS vehicle-stock data only; synthetic regional asking-price medians were removed from the POC.
 
 Dashboard confidence labels are:
 
@@ -128,89 +123,122 @@ observed
 illustrative
 ```
 
-Do not silently promote an illustrative value to observed or official.
+## Current pages
 
-## Visualization approach
+### Executive Overview
 
-The dashboard uses D3 for visualization mathematics and React for rendering.
+Shows the current analysis-engine asking-value output, official NJKB reference, illustrative auction/downside signal, comparable range/count, regional BPS context, provenance, and a prominent analysis-status panel.
 
-Use D3 primarily for scales, lines/areas, axes, distributions, and specialized analytical geometry. Do not have D3 manually own the React DOM.
+### Vehicle Intelligence
 
-Each chart should follow this accessibility pattern:
+Shows the selected vehicle segment, analysis-engine valuation, comparable range, source status, signal comparison, and evidence registry.
+
+When the analysis API exposes only a current snapshot, the chart displays one current point rather than fabricating historical observations.
+
+### Market Intelligence
+
+Uses official BPS vehicle-stock data for selected provinces. The POC does not invent regional asking prices. Future marketplace observations can add regional price/liquidity analytics after the data layer is populated.
+
+### Data & Methodology
+
+Explains signal definitions, source registry, confidence labels, current POC limitations, and validation boundaries.
+
+## Floating glassmorphism navigation
+
+The dashboard uses floating glass UI rather than a fixed solid sidebar.
+
+Desktop:
 
 ```text
-figure / figcaption
-      ↓
-responsive SVG
-      ↓
-<title> + <desc>
-      ↓
-visible labels
-      ↓
-screen-reader data table
+floating brand capsule   floating navigation capsule   POC status capsule
 ```
 
-On narrow screens, charts may scroll horizontally inside their own focusable region. Do not create page-level horizontal overflow just to preserve a chart's minimum readable width.
+Mobile:
 
-## Glassmorphism design system
-
-The dashboard now uses an accessible glassmorphism visual language.
+```text
+floating brand/status at top
+content
+floating four-item bottom navigation above safe area
+```
 
 Shared CSS primitives:
 
 ```text
-glass-panel      primary cards / visualizations
-glass-subpanel   nested evidence / source blocks
-glass-header     sticky dashboard header
+glass-panel      primary content cards
+glass-subpanel   nested evidence/source blocks
+glass-floating   navigation/status/brand chrome
+action-primary   guaranteed high-contrast primary actions
+action-secondary guaranteed high-contrast secondary actions
 ```
 
-The design combines translucent light surfaces, subtle borders, background blur, soft shadows, and strong slate text. Glass should remain a presentation effect; never reduce opacity so far that underlying gradients or content interfere with reading.
-
-Desktop uses a dark translucent sidebar. Mobile/tablet uses a sticky glass header with horizontally scrollable pill navigation.
-
-Tailwind remains the layout/component utility framework. Global glass, accessibility, and progressive-enhancement rules live in `app/globals.css`.
+Glass is presentation only. Text and controls must remain readable without relying on backdrop blur or transparency.
 
 ## Responsive behavior
 
 Build mobile-first.
 
-Current rules include:
+Requirements include:
 
-- 320 px minimum supported page width;
+- 320 px minimum supported viewport;
 - single-column content by default;
-- two/four-column metric layouts only as space becomes available;
-- desktop sidebar at `lg` and above;
-- mobile navigation below `lg`;
-- 44 px minimum navigation/touch targets;
-- smaller phone heading/card padding with larger desktop spacing;
-- horizontally scrollable wide charts and tables;
-- no fixed page-level desktop content width beyond the centered maximum container.
+- 44 px or larger touch/navigation targets;
+- floating bottom navigation on phones;
+- safe-area padding for mobile browser/device insets;
+- charts scroll inside their own focused container rather than causing page overflow;
+- tables scroll locally when required;
+- content remains usable at 200% browser zoom.
 
-See [DASHBOARD_ACCESSIBILITY.md](./DASHBOARD_ACCESSIBILITY.md) for the complete responsive and accessibility requirements.
+## Accessibility requirements
 
-## Accessibility rules
-
-Accessibility is a dashboard requirement, not a later polish pass.
-
-Current implementation includes:
+Current patterns include:
 
 - skip-to-main-content link;
-- semantic `main`, `nav`, `article`, `figure`, and table structures;
-- `aria-current="page"` for active navigation;
-- visible `:focus-visible` treatment;
-- keyboard-focusable scroll regions;
-- chart titles/descriptions and non-visual data tables;
-- table captions and row/column heading scopes;
-- textual confidence/status labels so color is supplementary;
-- `prefers-reduced-motion` support;
+- semantic `main`, `nav`, `article`, `figure`, tables and captions;
+- `aria-current="page"` on active navigation;
+- strong active/inactive navigation contrast;
+- visible keyboard focus rings;
+- minimum touch-target sizing;
+- chart `<title>` and `<desc>` plus screen-reader data tables;
+- confidence states communicated by text, not color alone;
+- `prefers-reduced-motion` handling;
 - forced-colors/high-contrast fallback;
-- stronger text/chart contrast than the initial POC.
+- primary/secondary action classes with opaque text/background contrast.
 
-Do not remove any of these patterns when restyling a component.
+See [DASHBOARD_ACCESSIBILITY.md](./DASHBOARD_ACCESSIBILITY.md).
+
+## Environment
+
+Create `apps/dashboard/.env.local` from the example:
+
+```bash
+cp apps/dashboard/.env.example apps/dashboard/.env.local
+```
+
+Local defaults:
+
+```text
+ANALYSIS_BASE_URL=http://localhost:8001
+DASHBOARD_VEHICLE_MAKE=Toyota
+DASHBOARD_VEHICLE_MODEL=Avanza
+DASHBOARD_VEHICLE_YEAR=2025
+DASHBOARD_VEHICLE_REGION=DKI Jakarta
+```
+
+`ANALYSIS_BASE_URL` is server-side. Do not prefix it with `NEXT_PUBLIC_`.
 
 ## Running locally
 
-From the repository root:
+Terminal 1:
+
+```bash
+cd apps/analysis
+export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
+uv run uvicorn riil_analysis.main:app --reload --host 0.0.0.0 --port 8001
+```
+
+If `DATABASE_URL` is exported in that shell, the analysis endpoint uses PostgreSQL/Neon marketplace observations instead of the development CSV.
+
+Terminal 2, from repository root:
 
 ```bash
 yarn
@@ -224,40 +252,25 @@ Validate before merging:
 ```bash
 yarn typecheck:dashboard
 yarn build:dashboard
+cd apps/analysis && uv run pytest -v
 ```
 
-Also manually test phone widths, keyboard navigation, 200% browser zoom, reduced-motion mode, and high-contrast/forced-colors behavior.
+## Next analytical integrations
 
-## Migration to live Fin Engine data
-
-Recommended sequence:
+The preferred sequence is:
 
 ```text
-1. keep dashboard UI stable
-2. persist authorized marketplace observations in Neon
-3. persist/verify official auction observations
-4. add server-side dashboard queries
-5. replace fixture implementation inside lib/data/index.ts
-6. retain confidence/provenance metadata
-7. add filtering/search after the live data layer is stable
+1. populate Neon with authorized marketplace observations
+2. verify database-backed valuation in the Python analysis endpoint
+3. expose persisted auction observations through analysis
+4. expose true price-history series through analysis
+5. add regional marketplace aggregation
+6. add dashboard filters/search
+7. move external customer workflows through stable TypeScript API contracts
 ```
-
-A future internal dashboard API could expose overview, vehicle-search/detail, regional-market, and source-registry contracts. These are not public API contracts yet.
 
 ## What does not belong in the dashboard
 
-Do not put crawler implementations, normalization logic, source-specific scraping rules, valuation formulas, underwriting decision rules, database migrations, or client-side database credentials in `apps/dashboard`.
+Do not place crawler implementations, normalization rules, SQL migrations, valuation formulas, underwriting decision rules, database credentials, or direct browser-to-Neon access inside `apps/dashboard`.
 
-The dashboard consumes domain outputs; it does not own them.
-
-## POC success criteria
-
-The dashboard is successful when a non-technical B2B stakeholder can understand within a few minutes:
-
-1. what vehicle segment is being analyzed;
-2. how asking-price, official-reference, and downside signals differ;
-3. what the source evidence is;
-4. how regional context could support collateral decisions;
-5. which values are official/observed versus illustrative POC content;
-6. what additional value repeated live observations would provide;
-7. the same story on desktop, tablet, and phone, including keyboard and assistive-technology access.
+The dashboard consumes analytical outputs; it does not own analytical truth.
