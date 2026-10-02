@@ -1,10 +1,12 @@
 import {
+  requestAnalysisRegionalMarket,
   requestAnalysisValuation,
   requestAnalysisVehicleOptions,
 } from "@/lib/data/analysis";
 import { pocDashboardData } from "@/lib/data/poc";
 import type {
   DashboardData,
+  RegionalMarketPoint,
   SourceDescriptor,
   ValuePoint,
   VehicleCatalog,
@@ -133,25 +135,69 @@ export function resolveVehicleSelection(
   return sameConfiguredModel ?? options[0] ?? pocReferenceVehicle;
 }
 
+function bpsFallbackSource(): SourceDescriptor {
+  return (
+    pocDashboardData.sources.find((source) =>
+      source.id.startsWith("bps_vehicle_stock_"),
+    ) ?? {
+      id: "bps_vehicle_stock_fallback",
+      name: "Badan Pusat Statistik",
+      type: "Regional vehicle stock",
+      confidence: "official",
+      lastUpdated: "Fallback fixture",
+      note: "Static fallback used because the persisted BPS snapshot is unavailable.",
+    }
+  );
+}
+
 /**
  * Server-side data access boundary for dashboard pages.
  *
- * Primary path: Python analysis service. When DATABASE_URL is configured on
- * the analysis service, valuation is produced from latest persisted listing
- * observations in Neon. Synthetic POC listings remain explicitly labelled
- * and never silently become "observed" marketplace evidence.
- *
- * Fallback path: clearly-labelled POC fixture. We never silently present the
- * fallback marketplace values as live analysis output.
+ * Marketplace valuation remains synthetic for the POC when demo records are
+ * selected. Official regional market context is independently loaded from the
+ * latest BPS snapshot persisted in Neon, with the committed fixture retained
+ * only as an availability fallback.
  */
 export async function getDashboardData(
   vehicle: VehicleOption = dashboardVehicle,
 ): Promise<DashboardData> {
-  const analysisResult = await requestAnalysisValuation(vehicle);
+  const [analysisResult, regionalResult] = await Promise.all([
+    requestAnalysisValuation(vehicle),
+    requestAnalysisRegionalMarket(),
+  ]);
+
+  const regionalMarket: RegionalMarketPoint[] =
+    regionalResult.status === "ok"
+      ? regionalResult.data.regions.map((point) => ({
+          region: point.region,
+          passengerCars: point.passenger_cars,
+        }))
+      : pocDashboardData.regionalMarket;
+
+  const regionalSource: SourceDescriptor =
+    regionalResult.status === "ok"
+      ? {
+          id: regionalResult.data.source,
+          name: "Badan Pusat Statistik",
+          type: "Official regional vehicle stock",
+          confidence: "official",
+          lastUpdated: `${regionalResult.data.year} table · latest persisted refresh`,
+          note:
+            "Passenger-car counts were fetched from the public BPS statistics table and persisted in Neon. They provide regional market-depth context, not a vehicle-price estimate.",
+          url: regionalResult.data.source_url,
+        }
+      : bpsFallbackSource();
 
   if (analysisResult.status !== "ok") {
     return {
       ...pocDashboardData,
+      regionalMarket,
+      sources: [
+        regionalSource,
+        ...pocDashboardData.sources.filter(
+          (source) => !source.id.startsWith("bps_vehicle_stock_"),
+        ),
+      ],
       analysis: {
         state: "fallback",
         label: "Default demo vehicle shown",
@@ -197,6 +243,7 @@ export async function getDashboardData(
   return {
     ...pocDashboardData,
     mode: "analysis",
+    regionalMarket,
     analysis: {
       state: observedDatabaseBacked
         ? "database"
@@ -237,12 +284,7 @@ export async function getDashboardData(
         },
       ],
     },
-    sources: [
-      ...pocDashboardData.sources.filter(
-        (source) => source.id === "bps_vehicle_stock_2023",
-      ),
-      analysisSource,
-    ],
+    sources: [regionalSource, analysisSource],
   };
 }
 
