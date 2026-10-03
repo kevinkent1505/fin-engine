@@ -4,9 +4,12 @@ from fastapi import FastAPI, HTTPException
 
 from .models import (
     VehicleCatalogResponse,
+    VehicleReferenceRequest,
+    VehicleReferenceResponse,
     VehicleValuationRequest,
     VehicleValuationResponse,
 )
+from .references import resolve_vehicle_references
 from .regional import (
     RegionalMarketResponse,
     latest_regional_market_from_database,
@@ -66,6 +69,26 @@ def regional_market() -> RegionalMarketResponse:
         return latest_regional_market_from_database(database_url)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.post(
+    "/internal/v1/vehicles/references",
+    response_model=VehicleReferenceResponse,
+)
+def vehicle_references(
+    request: VehicleReferenceRequest,
+) -> VehicleReferenceResponse:
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise HTTPException(
+            status_code=503,
+            detail="DATABASE_URL is required for persisted vehicle references.",
+        )
+
+    return resolve_vehicle_references(
+        request=request,
+        database_url=database_url,
+    )
 
 
 @app.post(
