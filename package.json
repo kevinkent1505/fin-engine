@@ -2,7 +2,10 @@
   "name": "fin-engine",
   "private": true,
   "packageManager": "yarn@1.22.22",
-  "workspaces": ["apps/api", "apps/dashboard"],
+  "workspaces": [
+    "apps/api",
+    "apps/dashboard"
+  ],
   "scripts": {
     "dev": "bash scripts/dev-all.sh",
     "dev:analysis": "cd apps/analysis && VEHICLE_DATA_PATH=${VEHICLE_DATA_PATH:-../../data/sample/vehicles.csv} uv run uvicorn riil_analysis.main:app --reload --host 0.0.0.0 --port 8001",
@@ -12,5 +15,9 @@
     "dev:dashboard": "yarn workspace @fin-engine/dashboard dev",
     "build:dashboard": "yarn workspace @fin-engine/dashboard build",
     "typecheck:dashboard": "yarn workspace @fin-engine/dashboard typecheck"
+  },
+  "devDependencies": {
+    "@neon/config": "^1.8.3",
+    "@neon/env": "^1.4.8"
   }
 }

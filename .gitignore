@@ -6,6 +6,7 @@ dist/
 .env.*.local
 .neon/
 .venv/
+.agents/
 __pycache__/
 *.py[cod]
 .pytest_cache/
