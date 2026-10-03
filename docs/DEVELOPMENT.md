@@ -82,11 +82,48 @@ comparable_market_v1
 
 There is no silent DB-to-CSV fallback when a database is configured but has no comparables. The API returns no-comparables instead, allowing the dashboard to label its POC fallback honestly.
 
-## Run locally
+## Start the full local application stack
 
-### Terminal 1: Python analysis service
+After the bootstrap steps above, the normal local-development command is simply:
 
-From `apps/analysis`:
+```bash
+yarn dev
+```
+
+It starts the three interactive application components together:
+
+```text
+Dashboard   http://localhost:3000
+API         http://localhost:8000
+Analysis    http://localhost:8001
+```
+
+The command **does not start any crawler or ingestion job**. Crawlers remain explicit CLI/batch operations so local development cannot accidentally trigger marketplace collection.
+
+`Ctrl+C` stops the full stack. If one application exits unexpectedly, the launcher stops the remaining processes instead of leaving a partially running stack behind.
+
+Environment variables exported before `yarn dev` are inherited by the services. For example, to use Neon-backed valuation:
+
+```bash
+export DATABASE_URL='postgresql://USER:PASSWORD@HOST-pooler.../neondb?sslmode=require'
+yarn dev
+```
+
+Without `DATABASE_URL`, the analysis service uses the committed development comparable CSV through the default `VEHICLE_DATA_PATH`.
+
+## Run individual components manually
+
+The commands below remain useful when debugging only one part of the system.
+
+### Analysis service
+
+From repository root:
+
+```bash
+yarn dev:analysis
+```
+
+Equivalent direct command from `apps/analysis`:
 
 ```bash
 export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
@@ -102,15 +139,7 @@ Check:
 curl http://localhost:8001/health
 ```
 
-For database-backed valuation, export Neon first:
-
-```bash
-export DATABASE_URL='postgresql://USER:PASSWORD@HOST-pooler.../neondb?sslmode=require'
-```
-
-Then restart the analysis service in the same shell.
-
-### Terminal 2: business dashboard
+### Business dashboard
 
 From repository root:
 
@@ -143,7 +172,7 @@ Routes:
 
 See [DASHBOARD.md](./DASHBOARD.md).
 
-### Terminal 3: TypeScript public API, when needed
+### TypeScript public API
 
 ```bash
 yarn dev:api
@@ -227,7 +256,7 @@ Public API behavior should also be exercised through the Git-tracked Bruno colle
 docker compose up --build
 ```
 
-Compose currently runs the public TypeScript API and Python analysis service. The dashboard is run directly through Next.js for the POC and is not yet included in Compose.
+Compose currently runs the public TypeScript API and Python analysis service. The dashboard is run directly through Next.js for the POC and is not yet included in Compose. For the complete local three-component stack, prefer `yarn dev`.
 
 ## Generated data
 
@@ -258,15 +287,3 @@ The dashboard is connected to the Python analysis service, but that service does
 ### Public API returns `502 analysis_unavailable`
 
 Confirm the Python service is running and that the API's `ANALYSIS_BASE_URL` is correct.
-
-### Database persistence says `DATABASE_URL is not set`
-
-Set the variable in the same shell that runs the command.
-
-### Alembic cannot connect to Neon
-
-Check the connection string, `sslmode=require`, shell escaping, Neon project state, and pooled endpoint.
-
-### Marketplace crawl returns zero usable listings
-
-Start with a narrow authorized URL and small limit. If page structure changed, update the parser and add a regression fixture rather than bypassing access controls.
