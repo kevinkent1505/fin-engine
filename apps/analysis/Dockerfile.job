@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY pyproject.toml ./
+COPY riil_analysis ./riil_analysis
+COPY migrations ./migrations
+COPY alembic.ini ./
+COPY job-entrypoint.sh /usr/local/bin/run-ingestion-job
+
+RUN pip install --no-cache-dir . \
+    && chmod +x /usr/local/bin/run-ingestion-job
+
+ENTRYPOINT ["/usr/local/bin/run-ingestion-job"]
