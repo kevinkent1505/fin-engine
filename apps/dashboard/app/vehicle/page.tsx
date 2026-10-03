@@ -10,6 +10,46 @@ import {
   resolveVehicleSelection,
 } from "@/lib/data";
 import { formatPercent, formatRupiahCompact } from "@/lib/format";
+import type { VehicleReferenceMatch } from "@/lib/types";
+
+function referenceValueLabel(reference: VehicleReferenceMatch) {
+  if (reference.status === "exact" && reference.value !== undefined) {
+    return formatRupiahCompact(reference.value);
+  }
+
+  if (
+    reference.status === "range" &&
+    reference.low !== undefined &&
+    reference.high !== undefined
+  ) {
+    return `${formatRupiahCompact(reference.low)}–${formatRupiahCompact(reference.high)}`;
+  }
+
+  return "Not available";
+}
+
+function njkbDifferenceLabel(
+  askingValue: number,
+  reference: VehicleReferenceMatch,
+) {
+  if (reference.status === "exact" && reference.value !== undefined) {
+    return formatPercent((askingValue - reference.value) / reference.value);
+  }
+
+  if (
+    reference.status === "range" &&
+    reference.low !== undefined &&
+    reference.high !== undefined
+  ) {
+    const againstLow = (askingValue - reference.low) / reference.low;
+    const againstHigh = (askingValue - reference.high) / reference.high;
+    const low = Math.min(againstLow, againstHigh);
+    const high = Math.max(againstLow, againstHigh);
+    return `${formatPercent(low)} to ${formatPercent(high)}`;
+  }
+
+  return "Not available";
+}
 
 export default async function VehicleIntelligencePage({
   searchParams,
@@ -30,8 +70,8 @@ export default async function VehicleIntelligencePage({
   const data = await getDashboardData(selected);
   const snapshot = data.snapshot;
   const asking = snapshot.values.find((item) => item.kind === "listing")!;
-  const njkb = snapshot.values.find((item) => item.kind === "njkb");
-  const auction = snapshot.values.find((item) => item.kind === "auction_limit");
+  const njkbReference = data.references.njkb;
+  const auctionReference = data.references.auctionLimit;
 
   const askingHelper =
     data.analysis.state === "database"
@@ -55,6 +95,27 @@ export default async function VehicleIntelligencePage({
       : data.analysis.state === "demo"
         ? "Synthetic demo data"
         : "Demo mode";
+
+  const njkbHelper =
+    njkbReference.status === "exact"
+      ? "A single official NJKB value is available for this make, model and year."
+      : njkbReference.status === "range"
+        ? `${njkbReference.candidateCount} official NJKB variants match this make, model and year. The range is shown because the selected marketplace data does not identify one safe official variant match.`
+        : "No official NJKB record is available for this make, model and year in the persisted reference dataset.";
+
+  const differenceHelper =
+    njkbReference.status === "exact"
+      ? "How much higher or lower the estimated asking price is than the matched official reference."
+      : njkbReference.status === "range"
+        ? "The asking-price difference against the lowest and highest official NJKB values for this model-year."
+        : "Shown when an official NJKB value or model-year range is available.";
+
+  const auctionHelper =
+    auctionReference.status === "exact"
+      ? "A single auction/downside reference is available for this make, model and year."
+      : auctionReference.status === "range"
+        ? `${auctionReference.candidateCount} auction reference records match this make, model and year, so their range is shown.`
+        : "The current auction dataset has no matching record for this make, model and year.";
 
   return (
     <div className="space-y-6 sm:space-y-7">
@@ -97,33 +158,23 @@ export default async function VehicleIntelligencePage({
         <MetricCard
           metric={{
             label: "Official NJKB reference",
-            value: njkb ? formatRupiahCompact(njkb.value) : "Not matched yet",
-            helper: njkb
-              ? "Government reference value matched to the default demo configuration"
-              : "No official reference has been safely matched to this selection yet.",
+            value: referenceValueLabel(njkbReference),
+            helper: njkbHelper,
             tone: "positive",
           }}
         />
         <MetricCard
           metric={{
             label: "Difference from NJKB",
-            value: njkb
-              ? formatPercent((asking.value - njkb.value) / njkb.value)
-              : "Not available",
-            helper: njkb
-              ? "How much higher or lower the estimated asking price is than the official reference"
-              : "Shown only when the official reference matches the selected vehicle.",
+            value: njkbDifferenceLabel(asking.value, njkbReference),
+            helper: differenceHelper,
           }}
         />
         <MetricCard
           metric={{
             label: "Auction / downside reference",
-            value: auction
-              ? formatPercent((auction.value - asking.value) / asking.value)
-              : "Not available",
-            helper: auction
-              ? "Illustrative lower-value reference for the default demo vehicle"
-              : "A matched auction reference is not available for this vehicle yet.",
+            value: referenceValueLabel(auctionReference),
+            helper: auctionHelper,
             tone: "warning",
           }}
         />
@@ -148,29 +199,37 @@ export default async function VehicleIntelligencePage({
               </p>
             </div>
 
-            {njkb ? (
+            {njkbReference.status !== "unavailable" ? (
               <div>
-                <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-700">Official NJKB reference</div>
-                <div className="mt-1 text-xl font-semibold text-slate-950">{formatRupiahCompact(njkb.value)}</div>
+                <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-700">
+                  {njkbReference.status === "range"
+                    ? "Official NJKB range"
+                    : "Official NJKB reference"}
+                </div>
+                <div className="mt-1 text-xl font-semibold text-slate-950">
+                  {referenceValueLabel(njkbReference)}
+                </div>
                 <p className="mt-1 text-xs leading-5 text-slate-700">
-                  A government reference value. It is not the same thing as a retail market price.
+                  {njkbHelper} NJKB is a government reference value, not a retail market price.
                 </p>
               </div>
             ) : (
               <div className="rounded-xl border border-slate-300 bg-white/70 p-3">
-                <div className="text-sm font-semibold text-slate-950">Official reference not matched yet</div>
+                <div className="text-sm font-semibold text-slate-950">Official NJKB reference unavailable</div>
                 <p className="mt-1 text-xs leading-5 text-slate-700">
-                  The dashboard will not reuse another vehicle&apos;s NJKB value just to fill this space.
+                  The persisted NJKB dataset has no matching make, model and year for this selection.
                 </p>
               </div>
             )}
 
-            {auction ? (
+            {auctionReference.status !== "unavailable" ? (
               <div>
                 <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-700">Auction / downside reference</div>
-                <div className="mt-1 text-xl font-semibold text-slate-950">{formatRupiahCompact(auction.value)}</div>
+                <div className="mt-1 text-xl font-semibold text-slate-950">
+                  {referenceValueLabel(auctionReference)}
+                </div>
                 <p className="mt-1 text-xs leading-5 text-slate-700">
-                  An illustrative lower-value reference. It is not a confirmed transaction price.
+                  {auctionHelper} It is not a confirmed transaction price.
                 </p>
               </div>
             ) : null}
