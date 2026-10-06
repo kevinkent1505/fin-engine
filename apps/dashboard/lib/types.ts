@@ -45,6 +45,7 @@ export type VehicleOption = {
 export type VehicleCatalog = {
   options: VehicleOption[];
   source:
+    | "official"
     | "database"
     | "database_demo"
     | "database_mixed"
