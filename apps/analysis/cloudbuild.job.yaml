@@ -1,0 +1,15 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.job
+      - -t
+      - ${_IMAGE_URI}
+      - .
+
+images:
+  - ${_IMAGE_URI}
+
+substitutions:
+  _IMAGE_URI: asia-southeast1-docker.pkg.dev/PROJECT_ID/fin-engine/ingestion-job:marketplace-poc
