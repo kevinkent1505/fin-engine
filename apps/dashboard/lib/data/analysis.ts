@@ -18,7 +18,12 @@ type AnalysisValuationResponse = {
 
 type AnalysisVehicleCatalogResponse = {
   vehicles: VehicleOption[];
-  source: "database" | "database_demo" | "database_mixed" | "development";
+  source:
+    | "official"
+    | "database"
+    | "database_demo"
+    | "database_mixed"
+    | "development";
 };
 
 type AnalysisRegionalMarketResponse = {
@@ -96,9 +101,11 @@ export type AnalysisVehicleReferenceResult =
 const analysisBaseUrl =
   process.env.ANALYSIS_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8001";
 
-export async function requestAnalysisVehicleOptions(): Promise<AnalysisVehicleCatalogResult> {
+async function requestVehicleOptions(
+  path: string,
+): Promise<AnalysisVehicleCatalogResult> {
   try {
-    const response = await fetch(`${analysisBaseUrl}/internal/v1/vehicles/options`, {
+    const response = await fetch(`${analysisBaseUrl}${path}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(4_000),
     });
@@ -125,6 +132,14 @@ export async function requestAnalysisVehicleOptions(): Promise<AnalysisVehicleCa
       detail,
     };
   }
+}
+
+export async function requestOfficialVehicleOptions(): Promise<AnalysisVehicleCatalogResult> {
+  return requestVehicleOptions("/internal/v1/official/vehicles/options");
+}
+
+export async function requestAnalysisVehicleOptions(): Promise<AnalysisVehicleCatalogResult> {
+  return requestVehicleOptions("/internal/v1/vehicles/options");
 }
 
 export async function requestAnalysisRegionalMarket(): Promise<AnalysisRegionalMarketResult> {
