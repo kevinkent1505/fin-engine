@@ -5,9 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const navigation = [
-  { href: "/", label: "Overview", shortLabel: "Overview" },
-  { href: "/vehicle", label: "Vehicle Details", shortLabel: "Vehicle" },
-  { href: "/market", label: "Market Overview", shortLabel: "Market" },
+  { href: "/references", label: "Official References", shortLabel: "References" },
+  { href: "/market", label: "Regional Market", shortLabel: "Market" },
   { href: "/methodology", label: "About the Data", shortLabel: "Data" },
 ];
 
@@ -62,7 +61,7 @@ export function DashboardNavigation({
   return (
     <nav
       aria-label="Primary dashboard navigation"
-      className="glass-floating grid grid-cols-4 gap-1 rounded-[1.4rem] p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.20)]"
+      className="glass-floating grid grid-cols-3 gap-1 rounded-[1.4rem] p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.20)]"
     >
       {navigation.map((item) => {
         const active = pathname === item.href;
