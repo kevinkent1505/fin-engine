@@ -14,7 +14,10 @@
     "typecheck:api": "yarn workspace @fin-engine/api typecheck",
     "dev:dashboard": "yarn workspace @fin-engine/dashboard dev",
     "build:dashboard": "yarn workspace @fin-engine/dashboard build",
-    "typecheck:dashboard": "yarn workspace @fin-engine/dashboard typecheck"
+    "typecheck:dashboard": "yarn workspace @fin-engine/dashboard typecheck",
+    "refresh:njkb": "cd apps/analysis && uv run fin-engine-data ingest --source kemendagri_njkb_2025 --persist-db",
+    "refresh:bps": "cd apps/analysis && uv run fin-engine-data ingest --source bps_vehicle_stock_2025 --persist-db",
+    "refresh:official": "yarn refresh:njkb && yarn refresh:bps"
   },
   "devDependencies": {
     "@neon/config": "^1.8.3",
