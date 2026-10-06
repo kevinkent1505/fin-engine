@@ -9,6 +9,7 @@ from .models import (
     VehicleValuationRequest,
     VehicleValuationResponse,
 )
+from .official import list_official_vehicle_options
 from .references import resolve_vehicle_references
 from .regional import (
     RegionalMarketResponse,
@@ -28,6 +29,31 @@ app = FastAPI(title="Fin Engine Analysis", version="0.1.0")
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "analysis"}
+
+
+@app.get(
+    "/internal/v1/official/vehicles/options",
+    response_model=VehicleCatalogResponse,
+)
+def official_vehicle_options() -> VehicleCatalogResponse:
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise HTTPException(
+            status_code=503,
+            detail="DATABASE_URL is required for persisted official vehicle data.",
+        )
+
+    vehicles = list_official_vehicle_options(database_url)
+    if not vehicles:
+        raise HTTPException(
+            status_code=404,
+            detail="No persisted NJKB vehicle records are available.",
+        )
+
+    return VehicleCatalogResponse(
+        vehicles=vehicles,
+        source="official",
+    )
 
 
 @app.get(
