@@ -4,27 +4,27 @@ import re
 from bs4 import BeautifulSoup
 import httpx
 
+from riil_analysis.config import FIN_ENGINE_USER_AGENT, latest_official_source
 from riil_analysis.regional import RegionalVehicleStatisticInput
 
 
-class BpsVehicleStock2025Adapter:
-    """Fetch the official BPS 2025 provincial motor-vehicle statistics table."""
+SOURCE_CONFIG = latest_official_source("regional_vehicle_stock")
 
-    source_id = "bps_vehicle_stock_2025"
-    source_url = (
-        "https://www.bps.go.id/id/statistics-table/3/"
-        "VjJ3NGRGa3dkRk5MTlU1bVNFOTVVbmQyVURSTVFUMDkjMw%3D%3D/"
-        "jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan"
-    )
-    year = 2025
+
+class BpsVehicleStock2025Adapter:
+    """Fetch the latest configured official BPS provincial vehicle table."""
+
+    source_id = SOURCE_CONFIG.source_id
+    source_url = SOURCE_CONFIG.source_url
+    year = SOURCE_CONFIG.release_year
 
     def fetch(self) -> bytes:
         with httpx.Client(
             follow_redirects=True,
-            timeout=30.0,
+            timeout=SOURCE_CONFIG.timeout_seconds,
             headers={
-                "User-Agent": "FinEngine/0.1 (+https://riil.id)",
-                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": FIN_ENGINE_USER_AGENT,
+                "Accept": SOURCE_CONFIG.accept_header,
             },
         ) as client:
             response = client.get(self.source_url)
@@ -45,10 +45,6 @@ class BpsVehicleStock2025Adapter:
             if len(cells) < 6:
                 continue
 
-            # The official table's five rightmost data columns are passenger
-            # cars, buses, trucks, motorcycles, and total vehicles. Choosing
-            # the last textual prefix cell also tolerates an optional row-number
-            # column before the province name.
             value_cells = cells[-5:]
             prefix_cells = cells[:-5]
             region = next(
@@ -67,7 +63,6 @@ class BpsVehicleStock2025Adapter:
                     self._parse_count(value) for value in value_cells
                 ]
             except ValueError:
-                # Header rows and non-data rows naturally land here.
                 continue
 
             records[region] = RegionalVehicleStatisticInput(
@@ -82,8 +77,9 @@ class BpsVehicleStock2025Adapter:
                 motorcycles=motorcycles,
                 total=total,
                 metadata={
-                    "publisher": "Badan Pusat Statistik",
+                    "publisher": SOURCE_CONFIG.publisher,
                     "table_year": self.year,
+                    "publication": SOURCE_CONFIG.publication_label,
                     "reference_type": "official_regional_vehicle_stock",
                     "acquisition": "public_statistics_table",
                 },
@@ -106,8 +102,6 @@ class BpsVehicleStock2025Adapter:
 
     @staticmethod
     def _parse_count(value: str) -> int:
-        # BPS displays Indonesian thousands separators and may append symbols
-        # such as * or r. Vehicle counts are integer units, so retain digits.
         digits = re.sub(r"[^0-9]", "", value)
         if not digits:
             raise ValueError(f"Invalid BPS vehicle count: {value!r}")
