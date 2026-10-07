@@ -21,7 +21,7 @@ class OfficialSourceConfig:
     source_url: str
     release_year: int
     publication_label: str
-    download_url: str | None = None
+    download_urls: tuple[str, ...] = ()
     timeout_seconds: float = 30.0
     accept_header: str = "text/html,application/xhtml+xml"
     default_region: str = INDONESIA_REGION
@@ -39,9 +39,15 @@ OFFICIAL_SOURCES: tuple[OfficialSourceConfig, ...] = (
             "https://peraturan.bpk.go.id/Details/321612/"
             "permendagri-no-7-tahun-2025"
         ),
-        download_url=(
-            "https://peraturan.bpk.go.id/Download/383357/"
-            "Permendagri%20Nomor%207%20Tahun%202025.pdf"
+        download_urls=(
+            (
+                "https://peraturan.bpk.go.id/Read/383357/"
+                "Permendagri%20Nomor%207%20Tahun%202025.pdf"
+            ),
+            (
+                "https://peraturan.bpk.go.id/Download/383357/"
+                "Permendagri%20Nomor%207%20Tahun%202025.pdf"
+            ),
         ),
         release_year=2025,
         publication_label="Permendagri No. 7 Tahun 2025",
