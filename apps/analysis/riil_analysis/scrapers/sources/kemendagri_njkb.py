@@ -18,13 +18,15 @@ class KemendagriNjkbAdapter(VehicleSourceAdapter):
 
     source_id = SOURCE_CONFIG.source_id
     source_url = SOURCE_CONFIG.source_url
-    download_url = SOURCE_CONFIG.download_url
+    download_urls = SOURCE_CONFIG.download_urls
 
     def fetch(self) -> bytes:
-        if not self.download_url:
+        if not self.download_urls:
             raise ValueError(
                 f"No download URL configured for official source {self.source_id}."
             )
+
+        failures: list[str] = []
 
         with httpx.Client(
             follow_redirects=True,
@@ -32,16 +34,30 @@ class KemendagriNjkbAdapter(VehicleSourceAdapter):
             headers={
                 "User-Agent": FIN_ENGINE_USER_AGENT,
                 "Accept": SOURCE_CONFIG.accept_header,
+                "Referer": SOURCE_CONFIG.source_url,
             },
         ) as client:
-            response = client.get(self.download_url)
-            response.raise_for_status()
+            for url in self.download_urls:
+                try:
+                    response = client.get(url)
+                    response.raise_for_status()
+                except httpx.HTTPError as error:
+                    failures.append(f"{url}: {error}")
+                    continue
 
-        payload = response.content
-        if not payload.startswith(b"%PDF"):
-            raise ValueError("NJKB source did not return a PDF payload.")
+                payload = response.content
+                if payload.startswith(b"%PDF"):
+                    return payload
 
-        return payload
+                failures.append(
+                    f"{url}: response was not a PDF "
+                    f"(content-type={response.headers.get('content-type', 'unknown')})"
+                )
+
+        raise ValueError(
+            "NJKB source could not be downloaded from any configured official "
+            "document endpoint. " + " | ".join(failures)
+        )
 
     def parse(self, payload: bytes) -> list[RawVehicleObservation]:
         fetched_at = datetime.now(UTC)
