@@ -384,3 +384,43 @@ Before implementing a new source, document it here with:
 10. any stricter rate/retention rules.
 
 Then follow the adapter workflow in [INGESTION.md](./INGESTION.md).
+
+
+## Central source configuration
+
+Official-source constants are managed in one place:
+
+```text
+apps/analysis/riil_analysis/config/sources.py
+```
+
+This registry owns:
+
+- source IDs and stable semantic aliases;
+- publisher names;
+- canonical source and download URLs;
+- release years and publication labels;
+- HTTP timeouts and accepted content types;
+- the shared Fin Engine user agent;
+- default region values;
+- marketplace request-delay defaults.
+
+Application code should not hard-code annual source IDs such as
+`kemendagri_njkb_2025` or `bps_vehicle_stock_2025`. Use the semantic aliases
+`njkb_latest` and `vehicle_stock_latest`, or call
+`latest_official_source(...)` from Python.
+
+The standard refresh command is:
+
+```bash
+yarn refresh:official
+```
+
+It resolves the latest configured release for every official-source family at
+runtime. Adding a new annual release should require adding its metadata to
+`OFFICIAL_SOURCES`; adapters, dashboard queries, and the refresh command then
+follow the new latest release automatically.
+
+Year-specific source IDs are intentionally retained in the registry and
+database for provenance. "Latest" is a runtime selection rule, not a destructive
+rename of historical data.
