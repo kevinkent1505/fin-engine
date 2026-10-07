@@ -354,22 +354,57 @@ def build_parser() -> argparse.ArgumentParser:
 
 def refresh_official() -> int:
     """Refresh every official source selected by the central source registry."""
-    exit_code = 0
+    failures: list[dict[str, str]] = []
 
     for source_id in official_refresh_source_ids():
-        result = ingest(
-            source_id=source_id,
-            output_path=None,
-            limit=None,
-            input_file=None,
-            authorization_ref=None,
-            start_url=None,
-            request_delay_seconds=DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS,
-            persist_db=True,
-        )
-        exit_code = max(exit_code, result)
+        try:
+            result = ingest(
+                source_id=source_id,
+                output_path=None,
+                limit=None,
+                input_file=None,
+                authorization_ref=None,
+                start_url=None,
+                request_delay_seconds=DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS,
+                persist_db=True,
+            )
+            if result != 0:
+                failures.append(
+                    {
+                        "source": source_id,
+                        "error": f"ingestion exited with code {result}",
+                    }
+                )
+        except Exception as error:
+            failures.append(
+                {
+                    "source": source_id,
+                    "error": f"{type(error).__name__}: {error}",
+                }
+            )
 
-    return exit_code
+    if failures:
+        print(
+            json.dumps(
+                {
+                    "status": "partial_failure",
+                    "failures": failures,
+                },
+                indent=2,
+            )
+        )
+        return 1
+
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "sources": list(official_refresh_source_ids()),
+            },
+            indent=2,
+        )
+    )
+    return 0
 
 
 def main() -> int:
