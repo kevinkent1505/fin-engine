@@ -39,3 +39,20 @@ def test_official_refresh_selects_one_latest_release_per_family() -> None:
         latest_official_source("njkb").source_id,
         latest_official_source("regional_vehicle_stock").source_id,
     )
+
+
+def test_runtime_registry_accepts_semantic_latest_aliases() -> None:
+    from riil_analysis.scrapers.registry import (
+        get_regional_source_adapter,
+        get_source_adapter,
+        is_regional_source,
+    )
+
+    njkb_adapter = get_source_adapter("njkb_latest")
+    bps_adapter = get_regional_source_adapter("vehicle_stock_latest")
+
+    assert njkb_adapter.source_id == latest_official_source("njkb").source_id
+    assert bps_adapter.source_id == latest_official_source(
+        "regional_vehicle_stock"
+    ).source_id
+    assert is_regional_source("vehicle_stock_latest")
