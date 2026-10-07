@@ -5,36 +5,39 @@ import re
 import httpx
 import pdfplumber
 
+from riil_analysis.config import FIN_ENGINE_USER_AGENT, latest_official_source
 from riil_analysis.ingestion.models import RawVehicleObservation
 from riil_analysis.scrapers.base import VehicleSourceAdapter
 
 
+SOURCE_CONFIG = latest_official_source("njkb")
+
+
 class KemendagriNjkb2025Adapter(VehicleSourceAdapter):
     """
-    Official 2025 NJKB reference values from Permendagri No. 7/2025.
+    Official NJKB reference values from the latest configured Kemendagri release.
 
-    This is a government tax/reference-value source. It is not a live
-    transaction-price or marketplace-listing feed and must not be labelled
-    as one by downstream analytics.
+    Release metadata, URLs, HTTP settings, and default region are owned by the
+    central source registry. This adapter is responsible only for fetching and
+    parsing the configured official document.
     """
 
-    source_id = "kemendagri_njkb_2025"
-    source_url = (
-        "https://peraturan.bpk.go.id/Details/321612/"
-        "permendagri-no-7-tahun-2025"
-    )
-    download_url = (
-        "https://peraturan.bpk.go.id/Download/383357/"
-        "Permendagri%20Nomor%207%20Tahun%202025.pdf"
-    )
+    source_id = SOURCE_CONFIG.source_id
+    source_url = SOURCE_CONFIG.source_url
+    download_url = SOURCE_CONFIG.download_url
 
     def fetch(self) -> bytes:
+        if not self.download_url:
+            raise ValueError(
+                f"No download URL configured for official source {self.source_id}."
+            )
+
         with httpx.Client(
             follow_redirects=True,
-            timeout=60.0,
+            timeout=SOURCE_CONFIG.timeout_seconds,
             headers={
-                "User-Agent": "FinEngine/0.1 (+https://riil.id)",
-                "Accept": "application/pdf",
+                "User-Agent": FIN_ENGINE_USER_AGENT,
+                "Accept": SOURCE_CONFIG.accept_header,
             },
         ) as client:
             response = client.get(self.download_url)
@@ -95,18 +98,12 @@ class KemendagriNjkb2025Adapter(VehicleSourceAdapter):
         year: str,
         njkb: str,
     ) -> bool:
-        # TH BUAT is a dedicated year column in the NJKB appendix. Requiring
-        # the whole cell to be one year prevents unrelated PDF tables such as
-        # "5 2025" from being accepted because they merely contain a year.
         if re.fullmatch(r"(?:19|20)\d{2}", year) is None:
             return False
 
-        # A vehicle make must contain at least one alphabetic character.
-        # This rejects numeric rows extracted from unrelated tables.
         if re.search(r"[A-Za-z]", make) is None:
             return False
 
-        # NJKB must contain digits and normalize to a positive amount.
         digits = re.sub(r"[^0-9]", "", njkb)
         if not digits or int(digits) <= 0:
             return False
@@ -167,7 +164,7 @@ class KemendagriNjkb2025Adapter(VehicleSourceAdapter):
             make_raw=make,
             type_raw=type_name,
             year_raw=year,
-            region_raw="Indonesia",
+            region_raw=SOURCE_CONFIG.default_region,
             price_raw=njkb,
             price_kind="njkb",
             currency="IDR",
@@ -177,7 +174,9 @@ class KemendagriNjkb2025Adapter(VehicleSourceAdapter):
                 "coding": coding,
                 "weight": weight,
                 "dp_pkb": dp_pkb,
-                "regulation": "Permendagri No. 7 Tahun 2025",
+                "publisher": SOURCE_CONFIG.publisher,
+                "release_year": SOURCE_CONFIG.release_year,
+                "regulation": SOURCE_CONFIG.publication_label,
                 "reference_type": "official_njkb",
             },
         )
