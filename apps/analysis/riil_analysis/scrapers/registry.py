@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 
+from riil_analysis.config import official_source_aliases
 from riil_analysis.scrapers.base import VehicleSourceAdapter
 from riil_analysis.scrapers.sources.authorized_marketplace_crawl import (
     CarmudiAuthorizedCrawler,
@@ -42,12 +43,27 @@ REGIONAL_SOURCE_FACTORIES: dict[str, Callable[[], Any]] = {
     BpsVehicleStock2025Adapter.source_id: BpsVehicleStock2025Adapter,
 }
 
-ALL_SOURCE_IDS = sorted(set(SOURCE_FACTORIES) | set(REGIONAL_SOURCE_FACTORIES))
+SOURCE_ALIASES = official_source_aliases()
+
+ALL_SOURCE_IDS = sorted(
+    set(SOURCE_FACTORIES)
+    | set(REGIONAL_SOURCE_FACTORIES)
+    | set(SOURCE_ALIASES)
+)
+
+
+def resolve_source_id(source_id: str) -> str:
+    return SOURCE_ALIASES.get(source_id, source_id)
+
+
+def is_regional_source(source_id: str) -> bool:
+    return resolve_source_id(source_id) in REGIONAL_SOURCE_FACTORIES
 
 
 def get_source_adapter(source_id: str) -> VehicleSourceAdapter:
+    resolved = resolve_source_id(source_id)
     try:
-        return SOURCE_FACTORIES[source_id]()
+        return SOURCE_FACTORIES[resolved]()
     except KeyError as error:
         supported = ", ".join(sorted(SOURCE_FACTORIES))
         raise ValueError(
@@ -56,8 +72,9 @@ def get_source_adapter(source_id: str) -> VehicleSourceAdapter:
 
 
 def get_regional_source_adapter(source_id: str) -> Any:
+    resolved = resolve_source_id(source_id)
     try:
-        return REGIONAL_SOURCE_FACTORIES[source_id]()
+        return REGIONAL_SOURCE_FACTORIES[resolved]()
     except KeyError as error:
         supported = ", ".join(sorted(REGIONAL_SOURCE_FACTORIES))
         raise ValueError(
