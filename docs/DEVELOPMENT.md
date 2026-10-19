@@ -8,7 +8,7 @@ This guide is the fastest path from a fresh clone to a working Fin Engine develo
 - Node.js 20+
 - Yarn 1.22.x
 - Python 3.12+
-- `uv`
+- Standard Python `venv` and `pip` (bundled with Python; no uv required)
 - Docker Desktop or another Docker Compose-compatible runtime, optional
 - Neon/PostgreSQL when testing database-backed valuation/persistence
 
@@ -27,12 +27,10 @@ git clone https://github.com/kevinkent1505/fin-engine.git
 cd fin-engine
 yarn
 
-cd apps/analysis
-uv python install 3.12
-uv python pin 3.12
-uv sync --extra dev
-cd ../..
+yarn setup
 ```
+
+The same commands work from PowerShell, Windows Terminal, Git Bash, macOS Terminal, and Linux. If the Python executable is not on PATH, set `FIN_ENGINE_PYTHON` to its full path before running `yarn setup`. Python 3.11 is not supported; install Python 3.12+ separately. Existing `apps/analysis/.venv` environments are reused if compatible.
 
 ## Environment variables
 
@@ -102,7 +100,7 @@ The command **does not start any crawler or ingestion job**. Crawlers remain exp
 
 `Ctrl+C` stops the full stack. If one application exits unexpectedly, the launcher stops the remaining processes instead of leaving a partially running stack behind.
 
-Environment variables exported before `yarn dev` are inherited by the services. For example, to use Neon-backed valuation:
+Environment variables set in your terminal before `yarn dev` are inherited by the services. Use `export DATABASE_URL='...'` in Git Bash/macOS/Linux, or `$env:DATABASE_URL = '...'` in PowerShell. For example, to use Neon-backed valuation:
 
 ```bash
 export DATABASE_URL='postgresql://USER:PASSWORD@HOST-pooler.../neondb?sslmode=require'
@@ -126,11 +124,7 @@ yarn dev:analysis
 Equivalent direct command from `apps/analysis`:
 
 ```bash
-export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
-uv run uvicorn riil_analysis.main:app \
-  --reload \
-  --host 0.0.0.0 \
-  --port 8001
+yarn dev:analysis
 ```
 
 Check:
@@ -191,15 +185,14 @@ The dashboard does not require the public API for the POC analytical path. Exter
 After setting `DATABASE_URL`:
 
 ```bash
-cd apps/analysis
-uv run alembic upgrade head
+yarn migrate upgrade head
 ```
 
 Inspect migration state:
 
 ```bash
-uv run alembic current
-uv run alembic history
+yarn migrate current
+yarn migrate history
 ```
 
 See [DATABASE.md](./DATABASE.md).
@@ -211,8 +204,7 @@ A DB-backed dashboard needs listing observations in Neon that match the selected
 Example authorized crawl:
 
 ```bash
-cd apps/analysis
-uv run fin-engine-data ingest \
+yarn ingest \
   --source mobil123_authorized_crawl \
   --authorization-ref "permission-reference" \
   --request-delay-seconds 2 \
@@ -230,8 +222,7 @@ See [INGESTION.md](./INGESTION.md).
 Python:
 
 ```bash
-cd apps/analysis
-uv run pytest -v
+yarn test:analysis -v
 ```
 
 TypeScript API:
