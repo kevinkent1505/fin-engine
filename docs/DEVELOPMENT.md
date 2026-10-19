@@ -30,7 +30,9 @@ yarn
 yarn setup
 ```
 
-The same commands work from PowerShell, Windows Terminal, Git Bash, macOS Terminal, and Linux. If the Python executable is not on PATH, set `FIN_ENGINE_PYTHON` to its full path before running `yarn setup`. Python 3.11 is not supported; install Python 3.12+ separately. Existing `apps/analysis/.venv` environments are reused if compatible.
+The same commands work from PowerShell, Windows Terminal, Git Bash, macOS Terminal, and Linux. If the Python executable is not on PATH, set `FIN_ENGINE_PYTHON` to its full path before running `yarn setup`. Python 3.11 is not supported; install Python 3.12+ separately. Existing `apps/analysis/.venv` environments are reused if compatible. If your `.venv` was made by Python 3.11 or another operating system, delete **only** the local `apps/analysis/.venv` directory and rerun `yarn setup`.
+
+The launcher uses Node.js rather than Bash/PowerShell to manage processes, and invokes `.venv`'s Python executable directly without shell activation. The first setup requires network access to install Python packages using pip; Python itself must already be installed.
 
 ## Environment variables
 
@@ -121,10 +123,14 @@ From repository root:
 yarn dev:analysis
 ```
 
-Equivalent direct command from `apps/analysis`:
+The direct equivalent from `apps/analysis` (using the already-created virtual environment) is:
 
 ```bash
-yarn dev:analysis
+# macOS/Linux:
+./.venv/bin/python -m uvicorn riil_analysis.main:app --reload --port 8001
+
+# Windows (PowerShell or Git Bash):
+./.venv/Scripts/python.exe -m uvicorn riil_analysis.main:app --reload --port 8001
 ```
 
 Check:
@@ -218,6 +224,13 @@ The analysis endpoint uses only the latest listing observation per stable source
 See [INGESTION.md](./INGESTION.md).
 
 ## Tests and builds
+
+Check the Node launcher itself on any operating system:
+
+```bash
+yarn test:tooling
+```
+
 
 Python:
 
