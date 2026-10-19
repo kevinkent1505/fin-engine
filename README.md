@@ -37,7 +37,7 @@ Cloud Run Jobs
 → populate observed marketplace history in Neon
 ```
 
-Cloud Run Job infrastructure is **not yet committed/deployed**; see [Deployment](./docs/DEPLOYMENT.md).
+Cloud Run Job infrastructure is partially committed but deployment is not verified; see [Deployment](./docs/DEPLOYMENT.md).
 
 ## Architecture
 
@@ -119,24 +119,20 @@ fin-engine/
 
 ## Quick start
 
+Run the commands below from the repository root. For platform-independent local development, use the Yarn wrapper; Docker continues to install Python with pip directly.
+
 Install dependencies:
 
 ```bash
 yarn
+yarn setup```
 
-cd apps/analysis
-uv sync --extra dev
-cd ../..
-```
-
-Python 3.12 is recommended.
+Python 3.12+ is required (Node.js 20+ and Yarn 1 are also required). The setup command creates a standard local Python venv and installs dependencies with pip, on Windows, macOS or Linux. No uv or Windows py launcher is required.
 
 ### Run Python analysis service
 
 ```bash
-cd apps/analysis
-export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
-uv run uvicorn riil_analysis.main:app --reload --host 0.0.0.0 --port 8001
+yarn dev:analysis
 ```
 
 To use observed marketplace data instead, export a Neon `DATABASE_URL` in the same shell before starting the service.
@@ -187,16 +183,13 @@ Fin Engine uses PostgreSQL for durable ingestion history. Neon is the initial ho
 ```bash
 export DATABASE_URL='postgresql://USER:PASSWORD@...-pooler....neon.tech/neondb?sslmode=require'
 
-cd apps/analysis
-uv run alembic upgrade head
+yarn migrate upgrade head
 ```
 
 Persist an ingestion run:
 
 ```bash
-uv run fin-engine-data ingest \
-  --source kemendagri_njkb_2025 \
-  --persist-db
+yarn ingest --source njkb_latest --persist-db
 ```
 
 See [Database and Persistence](./docs/DATABASE.md).
@@ -223,8 +216,7 @@ Authorized marketplace crawlers are sequential and rate-limited. They require an
 Example:
 
 ```bash
-cd apps/analysis
-uv run fin-engine-data ingest \
+yarn ingest \
   --source mobil123_authorized_crawl \
   --authorization-ref "permission-reference" \
   --request-delay-seconds 2 \
@@ -240,8 +232,7 @@ See [Ingestion](./docs/INGESTION.md) and [Source Registry](./docs/SOURCES.md).
 Python:
 
 ```bash
-cd apps/analysis
-uv run pytest -v
+yarn test:analysis -v
 ```
 
 TypeScript API:
