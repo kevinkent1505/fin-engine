@@ -65,7 +65,7 @@ This dataset is regional market context, not vehicle-level price evidence. It is
 Run it with:
 
 ```bash
-uv run fin-engine-data ingest \
+yarn ingest \
   --source bps_vehicle_stock_2025 \
   --persist-db
 ```
@@ -147,7 +147,7 @@ generator = marketplace_demo_v1
 Run it with:
 
 ```bash
-uv run fin-engine-data ingest \
+yarn ingest \
   --source marketplace_demo_seed \
   --persist-db
 ```
