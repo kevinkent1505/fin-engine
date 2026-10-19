@@ -7,17 +7,21 @@
     "apps/dashboard"
   ],
   "scripts": {
-    "dev": "bash scripts/dev-all.sh",
-    "dev:analysis": "cd apps/analysis && VEHICLE_DATA_PATH=${VEHICLE_DATA_PATH:-../../data/sample/vehicles.csv} uv run uvicorn riil_analysis.main:app --reload --host 0.0.0.0 --port 8001",
+    "setup": "node scripts/fin-engine.mjs setup",
+    "dev": "node scripts/fin-engine.mjs dev",
+    "dev:analysis": "node scripts/fin-engine.mjs analysis",
     "dev:api": "yarn workspace @fin-engine/api dev",
     "build:api": "yarn workspace @fin-engine/api build",
     "typecheck:api": "yarn workspace @fin-engine/api typecheck",
     "dev:dashboard": "yarn workspace @fin-engine/dashboard dev",
     "build:dashboard": "yarn workspace @fin-engine/dashboard build",
     "typecheck:dashboard": "yarn workspace @fin-engine/dashboard typecheck",
-    "refresh:njkb": "cd apps/analysis && uv run fin-engine-data ingest --source njkb_latest --persist-db",
-    "refresh:bps": "cd apps/analysis && uv run fin-engine-data ingest --source vehicle_stock_latest --persist-db",
-    "refresh:official": "cd apps/analysis && uv run fin-engine-data refresh-official"
+    "test:analysis": "node scripts/fin-engine.mjs test",
+    "migrate": "node scripts/fin-engine.mjs migrate",
+    "ingest": "node scripts/fin-engine.mjs ingest",
+    "refresh:njkb": "node scripts/fin-engine.mjs refresh-njkb",
+    "refresh:bps": "node scripts/fin-engine.mjs refresh-bps",
+    "refresh:official": "node scripts/fin-engine.mjs refresh-official"
   },
   "devDependencies": {
     "@neon/config": "^1.8.3",
