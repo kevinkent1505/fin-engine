@@ -76,16 +76,17 @@ rows, obtain the **official BPS 2025 table** in your browser and save its render
 HTML. Then inspect the file and run:
 
 ```bash
-yarn ingest --source vehicle_stock_latest --input-file /path/to/bps-2025.html \
-  --output data/generated/bps-preview.csv
+yarn ingest --source vehicle_stock_latest --input-file ../../data/generated/bps-2025.html \
+  --output ../../data/generated/bps-preview.csv
 ```
 
-The output path above is relative to `apps/analysis` (where ingestion runs);
-adjust it as necessary. After confirming the source, year, province counts and
+The input file must be a saved copy of the real, published BPS 2025 table;
+put it at `data/generated/bps-2025.html` under the repository root.
+Paths shown above are relative to `apps/analysis` (where ingestion runs). After confirming the source, year, province counts and
 numeric values, set `DATABASE_URL` and persist:
 
 ```bash
-yarn ingest --source vehicle_stock_latest --input-file /path/to/bps-2025.html --persist-db
+yarn ingest --source vehicle_stock_latest --input-file ../../data/generated/bps-2025.html --persist-db
 ```
 
 The HTML fallback must contain genuine BPS table rows and is not a license to
