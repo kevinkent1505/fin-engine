@@ -62,13 +62,38 @@ total motor vehicles
 
 This dataset is regional market context, not vehicle-level price evidence. It is persisted in `regional_vehicle_statistics`, separately from `vehicle_records` and `vehicle_observations`.
 
-Run it with:
+The registered 2025 BPS source is the published national table:
+https://www.bps.go.id/id/statistics-table/3/VjJ3NGRGa3dkRk5MTlU1bVNFOTVVbmQyVURSTVFUMDkjMyMwMDAw/jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan-unit.html?year=2025
+
+Verify parsing and persist a new snapshot with:
 
 ```bash
-yarn ingest \
-  --source bps_vehicle_stock_2025 \
-  --persist-db
+yarn refresh:bps
 ```
+
+If direct access is blocked or the response contains no server-rendered table
+rows, obtain the **official BPS 2025 table** in your browser and save its rendered
+HTML. Then inspect the file and run:
+
+```bash
+yarn ingest --source vehicle_stock_latest --input-file /path/to/bps-2025.html \
+  --output data/generated/bps-preview.csv
+```
+
+The output path above is relative to `apps/analysis` (where ingestion runs);
+adjust it as necessary. After confirming the source, year, province counts and
+numeric values, set `DATABASE_URL` and persist:
+
+```bash
+yarn ingest --source vehicle_stock_latest --input-file /path/to/bps-2025.html --persist-db
+```
+
+The HTML fallback must contain genuine BPS table rows and is not a license to
+label copied or fabricated values as official. Do not edit source values or
+substitute synthetic records. If your browser's Save Page action omits
+JavaScript-rendered rows, save the actual rendered table element instead.
+Missing regional data should remain unavailable until validated source records
+are ingested. The 2025 BPS dataset contains preliminary (`*`) figures.
 
 The analysis service exposes the latest persisted snapshot at:
 
@@ -76,7 +101,7 @@ The analysis service exposes the latest persisted snapshot at:
 GET /internal/v1/regional-market
 ```
 
-The dashboard uses the persisted BPS snapshot when available and falls back to the committed static fixture only if the live-source snapshot is unavailable.
+The Regional Market dashboard uses the persisted official BPS snapshot when available; if no valid snapshot exists, it displays an explicit data-unavailable state rather than a synthetic fallback.
 
 ## Source policy
 
