@@ -62,39 +62,56 @@ total motor vehicles
 
 This dataset is regional market context, not vehicle-level price evidence. It is persisted in `regional_vehicle_statistics`, separately from `vehicle_records` and `vehicle_observations`.
 
-The registered 2025 BPS source is the published national table:
-https://www.bps.go.id/id/statistics-table/3/VjJ3NGRGa3dkRk5MTlU1bVNFOTVVbmQyVURSTVFUMDkjMyMwMDAw/jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan-unit.html?year=2025
+The registered 2025 BPS source is the official BPS statistical table:
+https://www.bps.go.id/id/statistics-table/3/VjJ3NGRGa3dkRk5MTlU1bVNFOTVVbmQyVURSTVFUMDkjMyMwMDAw/jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan--unit-.html?year=2025
 
-Verify parsing and persist a new snapshot with:
+The site may render rows using JavaScript. Its initial HTML response can be
+incomplete even though a browser shows the table. In that case, `yarn
+refresh:bps` correctly exits non-zero without persisting data; retrying the
+same request does not address the missing table rows.
+
+### Preferred import: official BPS CSV export
+
+1. Open the source URL above and select **2025**.
+2. Use the table's official **CSV** export/download option (not the webpage's
+   Save Page action). BPS publishes statistical tables with CSV/XLSX download
+   support. This adapter accepts the CSV export; XLSX is not yet supported.
+3. Save the unmodified export at `data/generated/bps-2025.csv` under the repo
+   root. Verify that the table heading identifies 2025 and that the five
+   counts per province have the correct meaning.
+
+Run a preview *without writing to Neon*:
 
 ```bash
-yarn refresh:bps
-```
-
-If direct access is blocked or the response contains no server-rendered table
-rows, obtain the **official BPS 2025 table** in your browser and save its rendered
-HTML. Then inspect the file and run:
-
-```bash
-yarn ingest --source vehicle_stock_latest --input-file ../../data/generated/bps-2025.html \
+yarn ingest --source vehicle_stock_latest \
+  --input-file ../../data/generated/bps-2025.csv \
   --output ../../data/generated/bps-preview.csv
 ```
 
-The input file must be a saved copy of the real, published BPS 2025 table;
-put it at `data/generated/bps-2025.html` under the repository root.
-Paths shown above are relative to `apps/analysis` (where ingestion runs). After confirming the source, year, province counts and
-numeric values, set `DATABASE_URL` and persist:
+The command runs from `apps/analysis`, which is why the relative file paths
+start with `../../`. Inspect the generated CSV, including its province names,
+five count columns and source year. Import only after validation:
 
 ```bash
-yarn ingest --source vehicle_stock_latest --input-file ../../data/generated/bps-2025.html --persist-db
+yarn ingest --source vehicle_stock_latest \
+  --input-file ../../data/generated/bps-2025.csv --persist-db
 ```
 
-The HTML fallback must contain genuine BPS table rows and is not a license to
-label copied or fabricated values as official. Do not edit source values or
-substitute synthetic records. If your browser's Save Page action omits
-JavaScript-rendered rows, save the actual rendered table element instead.
-Missing regional data should remain unavailable until validated source records
-are ingested. The 2025 BPS dataset contains preliminary (`*`) figures.
+Alternatively, `--input-file ../../data/generated/bps-2025.html` accepts an
+official HTML snapshot *only when it contains the actual complete rendered
+table*, not just the JavaScript page shell. Do not create or substitute
+synthetic values.
+
+The adapter rejects CSVs without the configured publication year and expected
+table headings. It checks that each numeric row's vehicle totals reconcile
+before insertion, requires at least ten valid rows, and records the import
+file name and SHA-256 hash for provenance. A file import is a manual official
+snapshot, **not** proof that a live API refresh succeeded. The 2025 values
+are preliminary where BPS marks them with an asterisk.
+
+Long term, use the official BPS WebAPI (which requires a BPS-issued API key)
+to automate the download, instead of relying on the website HTML.
+See https://webapi.bps.go.id/developer/ for credential registration.
 
 The analysis service exposes the latest persisted snapshot at:
 
