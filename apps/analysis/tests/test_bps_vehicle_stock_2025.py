@@ -120,6 +120,7 @@ def test_bps_official_html_file_ingestion_without_database(tmp_path) -> None:
     assert "DKI Jakarta" in content
     assert "bps_vehicle_stock_2025" in content
     assert "2336960" in content
+    assert "manual_official_html_snapshot" in content
 
 
 def test_bps_file_import_rejects_unsupported_formats(tmp_path) -> None:
