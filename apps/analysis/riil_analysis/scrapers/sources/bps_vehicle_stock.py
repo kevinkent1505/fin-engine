@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 import re
 
 from bs4 import BeautifulSoup
@@ -18,7 +19,22 @@ class BpsVehicleStockAdapter:
     source_url = SOURCE_CONFIG.source_url
     year = SOURCE_CONFIG.release_year
 
+    def __init__(self) -> None:
+        self.input_path: Path | None = None
+
+    def set_input_path(self, path: Path | None) -> None:
+        """Use a saved HTML copy of the official BPS table when needed."""
+        self.input_path = path
+
     def fetch(self) -> bytes:
+        if self.input_path is not None:
+            if self.input_path.suffix.lower() not in {".html", ".htm"}:
+                raise ValueError(
+                    "BPS --input-file requires an HTML page saved from the official "
+                    "BPS source, not a CSV or spreadsheet."
+                )
+            return self.input_path.read_bytes()
+
         with httpx.Client(
             follow_redirects=True,
             timeout=SOURCE_CONFIG.timeout_seconds,
@@ -88,7 +104,11 @@ class BpsVehicleStockAdapter:
         if len(records) < 10:
             raise ValueError(
                 "BPS vehicle-stock table produced too few regional rows. "
-                "The public table layout may have changed."
+                "The BPS page may render its rows with JavaScript or the table "
+                "layout may have changed. Try saving the fully rendered official "
+                "BPS 2025 table page as HTML and run "
+                "'yarn ingest --source vehicle_stock_latest --input-file "
+                "PATH_TO_FILE.html --persist-db'."
             )
 
         return list(records.values())
@@ -102,7 +122,14 @@ class BpsVehicleStockAdapter:
 
     @staticmethod
     def _parse_count(value: str) -> int:
-        digits = re.sub(r"[^0-9]", "", value)
-        if not digits:
+        # Official BPS thousands separators are periods (ID) or commas (EN).
+        # Temporary/revised-data footnotes may follow a number; do not turn
+        # footnote digits or missing-data markers into vehicle counts.
+        match = re.fullmatch(
+            r"\\s*(\\d{1,3}(?:[.,]\\d{3})*|\\d+)\\s*(?:\\*{1,3}|[era-bc])?\\s*",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if match is None:
             raise ValueError(f"Invalid BPS vehicle count: {value!r}")
-        return int(digits)
+        return int(match.group(1).replace(".", "").replace(",", ""))
