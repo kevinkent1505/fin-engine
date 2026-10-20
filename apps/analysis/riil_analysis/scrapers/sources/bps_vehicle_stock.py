@@ -1,4 +1,9 @@
+"""Regional motor-vehicle statistics from BPS official source tables."""
+
+import csv
 from datetime import UTC, datetime
+import hashlib
+import io
 from pathlib import Path
 import re
 
@@ -10,10 +15,17 @@ from riil_analysis.regional import RegionalVehicleStatisticInput
 
 
 SOURCE_CONFIG = latest_official_source("regional_vehicle_stock")
+SUPPORTED_INPUT_EXTENSIONS = frozenset({".html", ".htm", ".csv"})
+MIN_REGIONAL_ROWS = 10
 
 
 class BpsVehicleStockAdapter:
-    """Fetch and parse the latest configured official BPS vehicle-stock table."""
+    """Fetch and parse the latest configured official BPS vehicle-stock table.
+
+    The BPS website may render table data in the browser rather than in the
+    initial HTTP response. A CSV exported from the BPS table is supported as
+    an explicit, auditable offline import; it is never silently substituted.
+    """
 
     source_id = SOURCE_CONFIG.source_id
     source_url = SOURCE_CONFIG.source_url
@@ -23,15 +35,15 @@ class BpsVehicleStockAdapter:
         self.input_path: Path | None = None
 
     def set_input_path(self, path: Path | None) -> None:
-        """Use a saved HTML copy of the official BPS table when needed."""
+        """Use an official BPS HTML or CSV export instead of a live request."""
         self.input_path = path
 
     def fetch(self) -> bytes:
         if self.input_path is not None:
-            if self.input_path.suffix.lower() not in {".html", ".htm"}:
+            if self.input_path.suffix.lower() not in SUPPORTED_INPUT_EXTENSIONS:
                 raise ValueError(
-                    "BPS --input-file requires an HTML page saved from the official "
-                    "BPS source, not a CSV or spreadsheet."
+                    "BPS --input-file accepts a saved official BPS HTML page "
+                    "(.html/.htm) or table export (.csv)."
                 )
             return self.input_path.read_bytes()
 
@@ -47,26 +59,76 @@ class BpsVehicleStockAdapter:
             response.raise_for_status()
         return response.content
 
-    def parse(self, payload: bytes) -> list[RegionalVehicleStatisticInput]:
-        observed_at = datetime.now(UTC)
-        soup = BeautifulSoup(payload, "html.parser")
-        records: dict[str, RegionalVehicleStatisticInput] = {}
+    def _input_rows(self, payload: bytes) -> list[list[str]]:
+        if self.input_path is not None and self.input_path.suffix.lower() == ".csv":
+            try:
+                text = payload.decode("utf-8-sig")
+            except UnicodeDecodeError as error:
+                raise ValueError(
+                    "BPS CSV must be UTF-8. Re-export the official table as UTF-8 CSV."
+                ) from error
 
-        for row in soup.find_all("tr"):
-            cells = [
+            try:
+                dialect = csv.Sniffer().sniff(text[:8192], delimiters=",;\t")
+            except csv.Error as error:
+                raise ValueError(
+                    "BPS CSV delimiter could not be identified. Export the table "
+                    "with comma, semicolon, or tab separated fields."
+                ) from error
+
+            rows = [
+                [self._clean_cell(cell) for cell in row]
+                for row in csv.reader(io.StringIO(text), dialect)
+            ]
+            # This adapter is bound to one BPS publication year. A multi-year
+            # CSV or a wrongly selected year must not silently become 2025 data.
+            header_text = " ".join(
+                cell for row in rows[:20] for cell in row
+            )
+            if not re.search(rf"\b{self.year}\b", header_text):
+                raise ValueError(
+                    f"BPS CSV does not identify the configured source year "
+                    f"{self.year} in its header. Verify the downloaded year "
+                    "on BPS before importing; do not relabel older data."
+                )
+            return rows
+
+        soup = BeautifulSoup(payload, "html.parser")
+        return [
+            [
                 self._clean_cell(cell.get_text(" ", strip=True))
                 for cell in row.find_all(["th", "td"])
             ]
+            for row in soup.find_all("tr")
+        ]
+
+    def parse(self, payload: bytes) -> list[RegionalVehicleStatisticInput]:
+        observed_at = datetime.now(UTC)
+        records: dict[str, RegionalVehicleStatisticInput] = {}
+
+        acquisition = "public_statistics_table"
+        provenance: dict[str, str] = {}
+        if self.input_path is not None:
+            suffix = self.input_path.suffix.lower()
+            acquisition = (
+                "manual_official_csv_export"
+                if suffix == ".csv"
+                else "manual_official_html_snapshot"
+            )
+            provenance = {
+                "import_filename": self.input_path.name,
+                "import_sha256": hashlib.sha256(payload).hexdigest(),
+            }
+
+        for cells in self._input_rows(payload):
             cells = [cell for cell in cells if cell]
             if len(cells) < 6:
                 continue
 
-            value_cells = cells[-5:]
-            prefix_cells = cells[:-5]
+            prefix_cells, value_cells = cells[:-5], cells[-5:]
             region = next(
                 (
-                    cell
-                    for cell in reversed(prefix_cells)
+                    cell for cell in reversed(prefix_cells)
                     if re.search(r"[A-Za-z]", cell)
                 ),
                 None,
@@ -80,6 +142,17 @@ class BpsVehicleStockAdapter:
                 ]
             except ValueError:
                 continue
+
+            # Counts and their published sum must agree. Avoid accidentally
+            # ingesting other numeric tables or a shifted CSV year/column.
+            if passenger_cars + buses + trucks + motorcycles != total:
+                continue
+
+            if region in records:
+                raise ValueError(
+                    f"BPS source contains duplicate numeric rows for {region!r}. "
+                    "Check the export and year columns before persistence."
+                )
 
             records[region] = RegionalVehicleStatisticInput(
                 source=self.source_id,
@@ -97,22 +170,19 @@ class BpsVehicleStockAdapter:
                     "table_year": self.year,
                     "publication": SOURCE_CONFIG.publication_label,
                     "reference_type": "official_regional_vehicle_stock",
-                    "acquisition": (
-                        "manual_official_html_snapshot"
-                        if self.input_path is not None
-                        else "public_statistics_table"
-                    ),
+                    "acquisition": acquisition,
+                    **provenance,
                 },
             )
 
-        if len(records) < 10:
+        if len(records) < MIN_REGIONAL_ROWS:
             raise ValueError(
-                "BPS vehicle-stock table produced too few regional rows. "
-                "The BPS page may render its rows with JavaScript or the table "
-                "layout may have changed. Try saving the fully rendered official "
-                "BPS 2025 table page as HTML and run "
-                "'yarn ingest --source vehicle_stock_latest --input-file "
-                "PATH_TO_FILE.html --persist-db'."
+                "BPS vehicle-stock table produced too few validated regional "
+                "rows. The public page may render its table with JavaScript. "
+                "Download the official 2025 table as CSV from bps.go.id and "
+                "import it using 'yarn ingest --source vehicle_stock_latest "
+                "--input-file ../../data/generated/bps-2025.csv --persist-db'. "
+                "No incomplete source data were persisted."
             )
 
         return list(records.values())
