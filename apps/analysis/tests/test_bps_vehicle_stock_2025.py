@@ -201,3 +201,13 @@ def test_bps_csv_rejects_mislabeled_table(tmp_path) -> None:
     adapter.set_input_path(source)
     with pytest.raises(ValueError, match="missing province and motor-vehicle"):
         adapter.run()
+
+
+def test_bps_parser_excludes_rows_with_nonreconciling_totals() -> None:
+    payload = _table_html().replace(
+        b"<td>2.898.834</td>",
+        b"<td>2.898.835</td>",
+    )
+    records = BpsVehicleStock2025Adapter().parse(payload)
+    assert all(record.region != "Aceh" for record in records)
+    assert len(records) == 11
