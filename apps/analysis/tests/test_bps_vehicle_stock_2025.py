@@ -1,4 +1,8 @@
 from datetime import UTC, datetime
+import csv
+import io
+
+from bs4 import BeautifulSoup
 
 from sqlalchemy import create_engine
 import pytest
@@ -125,9 +129,75 @@ def test_bps_official_html_file_ingestion_without_database(tmp_path) -> None:
 
 def test_bps_file_import_rejects_unsupported_formats(tmp_path) -> None:
     adapter = BpsVehicleStock2025Adapter()
-    source = tmp_path / "bps-2025.csv"
-    source.write_text("region,cars\\nAceh,200000", encoding="utf-8")
+    source = tmp_path / "bps-2025.json"
+    source.write_text('{"region":"Aceh"}', encoding="utf-8")
     adapter.set_input_path(source)
 
-    with pytest.raises(ValueError, match="requires an HTML page"):
+    with pytest.raises(ValueError, match="accepts a saved official BPS HTML page"):
         adapter.fetch()
+
+
+def _table_csv() -> bytes:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["BPS Jumlah Kendaraan Bermotor Menurut Provinsi 2025"])
+    writer.writerow([
+        "No", "Provinsi", "Mobil Penumpang", "Bus",
+        "Truk", "Sepeda Motor", "Jumlah Kendaraan Bermotor",
+    ])
+    soup = BeautifulSoup(_table_html(), "html.parser")
+    for row in soup.find_all("tr"):
+        writer.writerow([
+            cell.get_text(" ", strip=True) for cell in row.find_all("td")
+        ])
+    return output.getvalue().encode("utf-8-sig")
+
+
+def test_bps_official_csv_export_ingestion_and_provenance(tmp_path) -> None:
+    source = tmp_path / "bps-2025.csv"
+    source.write_bytes(_table_csv())
+    adapter = BpsVehicleStock2025Adapter()
+    adapter.set_input_path(source)
+    records = adapter.run()
+
+    jakarta = next(row for row in records if row.region == "DKI Jakarta")
+    assert jakarta.passenger_cars == 2_336_960
+    assert jakarta.total == 12_279_058
+    assert jakarta.year == 2025
+    assert jakarta.metadata["acquisition"] == "manual_official_csv_export"
+    assert jakarta.metadata["import_filename"] == "bps-2025.csv"
+    assert len(jakarta.metadata["import_sha256"]) == 64
+
+    preview = tmp_path / "bps-preview.csv"
+    assert ingest(
+        source_id="vehicle_stock_latest",
+        output_path=preview,
+        limit=None,
+        input_file=source,
+        authorization_ref=None,
+        start_url=None,
+        request_delay_seconds=2.0,
+        persist_db=False,
+    ) == 0
+    assert "DKI Jakarta" in preview.read_text(encoding="utf-8")
+
+
+def test_bps_csv_rejects_incorrect_publication_year(tmp_path) -> None:
+    source = tmp_path / "bps-2024.csv"
+    source.write_bytes(_table_csv().replace(b"2025", b"2024"))
+    adapter = BpsVehicleStock2025Adapter()
+    adapter.set_input_path(source)
+    with pytest.raises(ValueError, match="configured source year 2025"):
+        adapter.run()
+
+
+def test_bps_csv_rejects_mislabeled_table(tmp_path) -> None:
+    source = tmp_path / "other-2025.csv"
+    source.write_bytes(
+        _table_csv().replace(b"Jumlah Kendaraan Bermotor", b"Other Indicators")
+        .replace(b"Provinsi", b"Other Region")
+    )
+    adapter = BpsVehicleStock2025Adapter()
+    adapter.set_input_path(source)
+    with pytest.raises(ValueError, match="missing province and motor-vehicle"):
+        adapter.run()
