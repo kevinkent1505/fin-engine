@@ -60,8 +60,9 @@ OFFICIAL_SOURCES: tuple[OfficialSourceConfig, ...] = (
         publisher="Badan Pusat Statistik",
         source_url=(
             "https://www.bps.go.id/id/statistics-table/3/"
-            "VjJ3NGRGa3dkRk5MTlU1bVNFOTVVbmQyVURSTVFUMDkjMw%3D%3D/"
-            "jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan"
+            "VjJ3NGRGa3dkRk5MTlU1bVNFOTVVbmQyVURSTVFUMDkjMyMwMDAw/"
+            "jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan-unit.html"
+            "?year=2025"
         ),
         release_year=2025,
         publication_label="BPS provincial motor-vehicle statistics, 2025",
