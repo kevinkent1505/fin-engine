@@ -97,7 +97,11 @@ class BpsVehicleStockAdapter:
                     "table_year": self.year,
                     "publication": SOURCE_CONFIG.publication_label,
                     "reference_type": "official_regional_vehicle_stock",
-                    "acquisition": "public_statistics_table",
+                    "acquisition": (
+                        "manual_official_html_snapshot"
+                        if self.input_path is not None
+                        else "public_statistics_table"
+                    ),
                 },
             )
 
