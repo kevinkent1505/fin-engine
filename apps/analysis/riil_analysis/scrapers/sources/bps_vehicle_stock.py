@@ -68,17 +68,24 @@ class BpsVehicleStockAdapter:
                     "BPS CSV must be UTF-8. Re-export the official table as UTF-8 CSV."
                 ) from error
 
-            try:
-                dialect = csv.Sniffer().sniff(text[:8192], delimiters=",;\t")
-            except csv.Error as error:
+            # BPS exports sometimes begin with one-cell title/metadata rows,
+            # which causes csv.Sniffer to reject otherwise valid CSV files.
+            candidates = [
+                list(csv.reader(io.StringIO(text), delimiter=delimiter))
+                for delimiter in (",", ";", "\t")
+            ]
+            rows = max(
+                candidates,
+                key=lambda candidate: sum(len(row) >= 6 for row in candidate),
+            )
+            if sum(len(row) >= 6 for row in rows) < MIN_REGIONAL_ROWS:
                 raise ValueError(
-                    "BPS CSV delimiter could not be identified. Export the table "
-                    "with comma, semicolon, or tab separated fields."
-                ) from error
-
+                    "BPS CSV has too few tabular rows. Export the provincial "
+                    "2025 vehicle-stock table in CSV format."
+                )
             rows = [
                 [self._clean_cell(cell) for cell in row]
-                for row in csv.reader(io.StringIO(text), dialect)
+                for row in rows
             ]
             # This adapter is bound to one BPS publication year. A multi-year
             # CSV or a wrongly selected year must not silently become 2025 data.
@@ -90,6 +97,16 @@ class BpsVehicleStockAdapter:
                     f"BPS CSV does not identify the configured source year "
                     f"{self.year} in its header. Verify the downloaded year "
                     "on BPS before importing; do not relabel older data."
+                )
+            header_lower = header_text.lower()
+            if not (
+                ("provinsi" in header_lower or "province" in header_lower)
+                and ("kendaraan" in header_lower or "motor" in header_lower)
+            ):
+                raise ValueError(
+                    "BPS CSV is missing province and motor-vehicle table "
+                    "headings. Verify that it was exported from the official "
+                    "2025 provincial vehicle-stock table."
                 )
             return rows
 
