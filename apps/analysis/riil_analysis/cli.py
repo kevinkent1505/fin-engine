@@ -146,9 +146,11 @@ def ingest_regional(
     output_path: Path | None,
     limit: int | None,
     persist_db: bool,
+    input_file: Path | None = None,
 ) -> int:
     started_at = datetime.now(UTC)
     adapter = get_regional_source_adapter(source_id)
+    adapter.set_input_path(input_file)
     observations = adapter.run()
     if limit is not None:
         observations = observations[:limit]
@@ -206,6 +208,7 @@ def ingest(
             output_path=output_path,
             limit=limit,
             persist_db=persist_db,
+            input_file=input_file,
         )
 
     started_at = datetime.now(UTC)
