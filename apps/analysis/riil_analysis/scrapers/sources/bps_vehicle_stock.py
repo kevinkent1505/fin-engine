@@ -126,7 +126,7 @@ class BpsVehicleStockAdapter:
         # Temporary/revised-data footnotes may follow a number; do not turn
         # footnote digits or missing-data markers into vehicle counts.
         match = re.fullmatch(
-            r"\\s*(\\d{1,3}(?:[.,]\\d{3})*|\\d+)\\s*(?:\\*{1,3}|[era-bc])?\\s*",
+            r"\s*(\d{1,3}(?:[.,]\d{3})*|\d+)\s*(?:\*{1,3}|[erabc])?\s*",
             value,
             flags=re.IGNORECASE,
         )
