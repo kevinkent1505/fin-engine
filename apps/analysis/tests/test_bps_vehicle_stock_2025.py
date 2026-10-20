@@ -1,6 +1,9 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import create_engine
+import pytest
+
+from riil_analysis.cli import ingest
 
 from riil_analysis.database.models import Base
 from riil_analysis.database.persistence import persist_regional_vehicle_statistics
@@ -83,3 +86,47 @@ def test_latest_regional_market_uses_latest_persisted_bps_snapshot(tmp_path) -> 
     assert market.regions[0].region == "Jawa Timur"
     assert market.regions[0].passenger_cars == 5_588_804
     assert all(point.region != "Indonesia" for point in market.regions)
+
+
+def test_bps_parser_rejects_non_numeric_missing_values() -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    for missing_value in ("–", "...", "NA", "^1", "Data tidak tersedia"):
+        with pytest.raises(ValueError, match="Invalid BPS vehicle count"):
+            adapter._parse_count(missing_value)
+
+    assert adapter._parse_count("223.567 *") == 223_567
+    assert adapter._parse_count("2,590,309*") == 2_590_309
+    assert adapter._parse_count("995") == 995
+
+
+def test_bps_official_html_file_ingestion_without_database(tmp_path) -> None:
+    html_file = tmp_path / "bps-2025.html"
+    html_file.write_bytes(_table_html())
+    output_file = tmp_path / "bps-preview.csv"
+
+    result = ingest(
+        source_id="vehicle_stock_latest",
+        output_path=output_file,
+        limit=None,
+        input_file=html_file,
+        authorization_ref=None,
+        start_url=None,
+        request_delay_seconds=2.0,
+        persist_db=False,
+    )
+
+    assert result == 0
+    content = output_file.read_text(encoding="utf-8")
+    assert "DKI Jakarta" in content
+    assert "bps_vehicle_stock_2025" in content
+    assert "2336960" in content
+
+
+def test_bps_file_import_rejects_unsupported_formats(tmp_path) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    source = tmp_path / "bps-2025.csv"
+    source.write_text("region,cars\\nAceh,200000", encoding="utf-8")
+    adapter.set_input_path(source)
+
+    with pytest.raises(ValueError, match="requires an HTML page"):
+        adapter.fetch()
