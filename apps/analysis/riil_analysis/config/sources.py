@@ -61,7 +61,7 @@ OFFICIAL_SOURCES: tuple[OfficialSourceConfig, ...] = (
         source_url=(
             "https://www.bps.go.id/id/statistics-table/3/"
             "VjJ3NGRGa3dkRk5MTlU1bVNFOTVVbmQyVURSTVFUMDkjMyMwMDAw/"
-            "jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan-unit.html"
+            "jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan--unit-.html"
             "?year=2025"
         ),
         release_year=2025,
