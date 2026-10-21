@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.4,<9"]
+bps_browser = ["playwright>=1.55,<2"]
 
 [project.scripts]
 fin-engine-data = "riil_analysis.cli:main"
