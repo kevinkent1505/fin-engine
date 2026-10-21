@@ -226,6 +226,9 @@ def _complete_live_html() -> bytes:
         cells[0].string = str(number + 100)
         cells[1].string = f"Test Province {number:02d}"
         table.append(new_row)
+    heading = soup.new_tag("h1")
+    heading.string = "Jumlah Kendaraan Bermotor Menurut Provinsi 2025"
+    soup.body.insert(0, heading)
     return str(soup).encode("utf-8")
 
 
@@ -297,3 +300,16 @@ def test_bps_file_import_never_attempts_browser_fallback(
         lambda: (_ for _ in ()).throw(AssertionError("Browser should not run")),
     )
     assert len(adapter.run()) == 12
+
+
+def test_bps_rejects_live_table_with_incorrect_publication_year(
+    monkeypatch,
+) -> None:
+    payload = _complete_live_html().replace(
+        b"Provinsi 2025", b"Provinsi 2024"
+    )
+    adapter = BpsVehicleStock2025Adapter()
+    monkeypatch.setattr(adapter, "fetch", lambda: payload)
+    monkeypatch.setattr(adapter, "fetch_rendered", lambda: payload)
+    with pytest.raises(RuntimeError, match="heading does not identify year"):
+        adapter.run()
