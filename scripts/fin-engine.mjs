@@ -133,7 +133,7 @@ async function setup() {
   });
   if (result !== 0) return result;
 
-  result = await run(python, ["-m", "pip", "install", "-e", ".[dev]"], {
+  result = await run(python, ["-m", "pip", "install", "-e", ".[dev,bps_browser]"], {
     cwd: analysis,
   });
   if (result === 0) console.log("Python setup complete. Run 'yarn dev'.");
@@ -254,6 +254,8 @@ async function main() {
       ]);
     case "ingest":
       return pythonCommand(["-m", "riil_analysis.cli", "ingest", ...args]);
+    case "setup-bps-browser":
+      return pythonCommand(["-m", "playwright", "install", "chromium"]);
     case "test":
       return pythonCommand(["-m", "pytest", ...args]);
     case "migrate":
@@ -261,7 +263,7 @@ async function main() {
     default:
       console.error(
         "Usage: node scripts/fin-engine.mjs " +
-        "<setup|dev|analysis|refresh-official|refresh-njkb|refresh-bps|ingest|test|migrate>",
+        "<setup|setup-bps-browser|dev|analysis|refresh-official|refresh-njkb|refresh-bps|ingest|test|migrate>",
       );
       return 2;
   }
