@@ -10,6 +10,11 @@ INDONESIA_REGION = "Indonesia"
 DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS = 2.0
 MIN_MARKETPLACE_REQUEST_DELAY_SECONDS = 1.0
 
+# BPS regional stock table should include most provinces and the national row.
+BPS_MIN_LIVE_ROWS = 25
+BPS_BROWSER_TIMEOUT_SECONDS = 60
+BPS_BROWSER_CHANNELS = ("msedge", "chrome", None)
+
 
 @dataclass(frozen=True)
 class OfficialSourceConfig:
