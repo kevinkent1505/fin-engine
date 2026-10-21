@@ -211,3 +211,89 @@ def test_bps_parser_excludes_rows_with_nonreconciling_totals() -> None:
     records = BpsVehicleStock2025Adapter().parse(payload)
     assert all(record.region != "Aceh" for record in records)
     assert len(records) == 11
+
+
+def _complete_live_html() -> bytes:
+    """Test fixture with all required regions and enough rows for a full page."""
+    soup = BeautifulSoup(_table_html(), "html.parser")
+    table = soup.find("table")
+    assert table is not None
+    original = table.find_all("tr")[0]
+    for number in range(25):
+        new_row = BeautifulSoup(str(original), "html.parser").find("tr")
+        assert new_row is not None
+        cells = new_row.find_all("td")
+        cells[0].string = str(number + 100)
+        cells[1].string = f"Test Province {number:02d}"
+        table.append(new_row)
+    return str(soup).encode("utf-8")
+
+
+def test_bps_auto_refresh_uses_rendered_browser_after_incomplete_http(
+    monkeypatch,
+) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    monkeypatch.setattr(
+        adapter, "fetch",
+        lambda: b"<html><body><h1>BPS vehicle stock 2025</h1></body></html>",
+    )
+
+    def rendered():
+        adapter._used_browser = True
+        return _complete_live_html()
+
+    monkeypatch.setattr(adapter, "fetch_rendered", rendered)
+
+    records = adapter.run()
+    assert len(records) >= 25
+    assert any(item.region == "Jawa Timur" for item in records)
+    assert all(
+        item.metadata["acquisition"] == "public_statistics_table_browser"
+        for item in records
+    )
+
+
+def test_bps_complete_http_response_does_not_open_browser(monkeypatch) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    monkeypatch.setattr(adapter, "fetch", _complete_live_html)
+
+    def unexpected_browser():
+        raise AssertionError("Complete HTTP results must not open a browser")
+
+    monkeypatch.setattr(adapter, "fetch_rendered", unexpected_browser)
+    records = adapter.run()
+    assert len(records) >= 25
+    assert all(
+        item.metadata["acquisition"] == "public_statistics_table"
+        for item in records
+    )
+
+
+def test_bps_refresh_rejects_incomplete_http_and_browser_snapshots(
+    monkeypatch,
+) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    monkeypatch.setattr(
+        adapter,
+        "fetch",
+        lambda: b"<html><body><h1>2025</h1></body></html>",
+    )
+    monkeypatch.setattr(adapter, "fetch_rendered", _table_html)
+
+    with pytest.raises(RuntimeError, match="No incomplete data were saved"):
+        adapter.run()
+
+
+def test_bps_file_import_never_attempts_browser_fallback(
+    monkeypatch, tmp_path
+) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    html_file = tmp_path / "official.html"
+    html_file.write_bytes(_table_html())
+    adapter.set_input_path(html_file)
+    monkeypatch.setattr(
+        adapter,
+        "fetch_rendered",
+        lambda: (_ for _ in ()).throw(AssertionError("Browser should not run")),
+    )
+    assert len(adapter.run()) == 12
