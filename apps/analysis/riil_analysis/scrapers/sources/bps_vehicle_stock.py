@@ -10,7 +10,13 @@ import re
 from bs4 import BeautifulSoup
 import httpx
 
-from riil_analysis.config import FIN_ENGINE_USER_AGENT, latest_official_source
+from riil_analysis.config import (
+    BPS_BROWSER_CHANNELS,
+    BPS_BROWSER_TIMEOUT_SECONDS,
+    BPS_MIN_LIVE_ROWS,
+    FIN_ENGINE_USER_AGENT,
+    latest_official_source,
+)
 from riil_analysis.regional import RegionalVehicleStatisticInput
 
 
@@ -33,10 +39,12 @@ class BpsVehicleStockAdapter:
 
     def __init__(self) -> None:
         self.input_path: Path | None = None
+        self._used_browser = False
 
     def set_input_path(self, path: Path | None) -> None:
         """Use an official BPS HTML or CSV export instead of a live request."""
         self.input_path = path
+        self._used_browser = False
 
     def fetch(self) -> bytes:
         if self.input_path is not None:
@@ -58,6 +66,93 @@ class BpsVehicleStockAdapter:
             response = client.get(self.source_url)
             response.raise_for_status()
         return response.content
+
+    def fetch_rendered(self) -> bytes:
+        """Load the official BPS table in a browser when HTML omits JS rows.
+
+        This uses regular Playwright automation of the public page. It does
+        not bypass authentication, challenges, or access controls.
+        On Windows, the system Microsoft Edge installation is tried first.
+        """
+        try:
+            from playwright.sync_api import Error as PlaywrightError
+            from playwright.sync_api import sync_playwright
+        except ImportError as error:
+            raise RuntimeError(
+                "BPS renders the official table with JavaScript. "
+                "Install the browser integration with 'yarn setup' "
+                "(Python extra: bps_browser)."
+            ) from error
+
+        failures: list[str] = []
+        with sync_playwright() as playwright:
+            for channel in BPS_BROWSER_CHANNELS:
+                name = channel or "bundled Chromium"
+                browser = None
+                try:
+                    launch_options = (
+                        {"channel": channel} if channel is not None else {}
+                    )
+                    browser = playwright.chromium.launch(
+                        headless=True, **launch_options
+                    )
+                    page = browser.new_page(locale="id-ID")
+                    page.goto(
+                        self.source_url,
+                        wait_until="domcontentloaded",
+                        timeout=BPS_BROWSER_TIMEOUT_SECONDS * 1000,
+                    )
+                    page.wait_for_function(
+                        """(minRows) =>
+                        Array.from(document.querySelectorAll('tr')).filter(
+                          row => row.querySelectorAll('td').length >= 6
+                        ).length >= minRows""",
+                        arg=BPS_MIN_LIVE_ROWS,
+                        timeout=BPS_BROWSER_TIMEOUT_SECONDS * 1000,
+                    )
+
+                    headings = " ".join(
+                        page.locator("h1, h2").all_inner_texts()
+                    )
+                    if str(self.year) not in headings:
+                        raise ValueError(
+                            f"BPS browser page does not identify year "
+                            f"{self.year} in the table heading. "
+                            "Refusing to import a potentially wrong year."
+                        )
+
+                    rendered = page.content().encode("utf-8")
+                    self._used_browser = True
+                    return rendered
+                except (PlaywrightError, ValueError) as error:
+                    failures.append(
+                        f"{name}: {type(error).__name__}: {error}"
+                    )
+                finally:
+                    if browser is not None:
+                        browser.close()
+
+        raise RuntimeError(
+            "BPS did not return a complete 2025 table in an ordinary "
+            "browser session. Install browser binaries with "
+            "'yarn setup:bps-browser' if necessary; if BPS blocks "
+            "automated access, use an authorized BPS WebAPI key or "
+            "the official CSV export. Browser attempts: "
+            + "; ".join(failures)
+        )
+
+    def _validate_live_snapshot(
+        self, records: list[RegionalVehicleStatisticInput]
+    ) -> None:
+        """Reject a paginated or incomplete live table before persistence."""
+        regions = {record.region for record in records}
+        required = {"Aceh", "DKI Jakarta", "Jawa Timur", "Indonesia"}
+        if len(regions) < BPS_MIN_LIVE_ROWS or not required.issubset(regions):
+            raise ValueError(
+                f"Incomplete BPS {self.year} live table: "
+                f"{len(regions)} validated regional/national rows. "
+                "The website may paginate or defer JavaScript table rows."
+            )
 
     def _input_rows(self, payload: bytes) -> list[list[str]]:
         if self.input_path is not None and self.input_path.suffix.lower() == ".csv":
@@ -187,7 +282,11 @@ class BpsVehicleStockAdapter:
                     "table_year": self.year,
                     "publication": SOURCE_CONFIG.publication_label,
                     "reference_type": "official_regional_vehicle_stock",
-                    "acquisition": acquisition,
+                    "acquisition": (
+                        "public_statistics_table_browser"
+                        if self._used_browser
+                        else acquisition
+                    ),
                     **provenance,
                 },
             )
@@ -205,7 +304,29 @@ class BpsVehicleStockAdapter:
         return list(records.values())
 
     def run(self) -> list[RegionalVehicleStatisticInput]:
-        return self.parse(self.fetch())
+        if self.input_path is not None:
+            # Explicitly supplied snapshots never trigger network requests.
+            return self.parse(self.fetch())
+
+        self._used_browser = False
+        try:
+            direct_records = self.parse(self.fetch())
+            self._validate_live_snapshot(direct_records)
+            return direct_records
+        except (ValueError, httpx.HTTPError) as direct_error:
+            # The BPS HTML response usually omits JavaScript-rendered rows.
+            # Retry once using an ordinary browser; never persist partial data.
+            try:
+                rendered_records = self.parse(self.fetch_rendered())
+                self._validate_live_snapshot(rendered_records)
+                return rendered_records
+            except Exception as browser_error:
+                raise RuntimeError(
+                    "Automatic BPS refresh failed: the HTTP table was "
+                    f"unavailable/incomplete ({direct_error}); browser "
+                    f"fallback also failed ({browser_error}). "
+                    "No incomplete data were saved."
+                ) from browser_error
 
     @staticmethod
     def _clean_cell(value: str) -> str:
