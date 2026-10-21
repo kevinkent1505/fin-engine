@@ -10,10 +10,10 @@
     "setup": "node scripts/fin-engine.mjs setup",
     "dev": "node scripts/fin-engine.mjs dev",
     "dev:analysis": "node scripts/fin-engine.mjs analysis",
-    "dev:api": "yarn workspace @fin-engine/api dev",
+    "dev:api": "node scripts/fin-engine.mjs api",
     "build:api": "yarn workspace @fin-engine/api build",
     "typecheck:api": "yarn workspace @fin-engine/api typecheck",
-    "dev:dashboard": "yarn workspace @fin-engine/dashboard dev",
+    "dev:dashboard": "node scripts/fin-engine.mjs dashboard",
     "build:dashboard": "yarn workspace @fin-engine/dashboard build",
     "typecheck:dashboard": "yarn workspace @fin-engine/dashboard typecheck",
     "test:analysis": "node scripts/fin-engine.mjs test",
@@ -22,8 +22,9 @@
     "refresh:njkb": "node scripts/fin-engine.mjs refresh-njkb",
     "refresh:bps": "node scripts/fin-engine.mjs refresh-bps",
     "refresh:official": "node scripts/fin-engine.mjs refresh-official",
-    "test:tooling": "node --check scripts/fin-engine.mjs",
-    "setup:bps-browser": "node scripts/fin-engine.mjs setup-bps-browser"
+    "test:tooling": "node --check scripts/fin-engine.mjs && node --test scripts/tests/*.test.mjs",
+    "setup:bps-browser": "node scripts/fin-engine.mjs setup-bps-browser",
+    "env:check": "node scripts/fin-engine.mjs env-check"
   },
   "devDependencies": {
     "@neon/config": "^1.8.3",
