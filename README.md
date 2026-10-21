@@ -121,13 +121,27 @@ fin-engine/
 
 Run the commands below from the repository root. For platform-independent local development, use the Yarn wrapper; Docker continues to install Python with pip directly.
 
-Install dependencies:
+Install dependencies and configure your local connection:
 
 ```bash
 yarn
-yarn setup```
+yarn setup
+cp .env.local.example .env.local
+```
 
-Python 3.12+ is required (Node.js 20+ and Yarn 1 are also required). The setup command creates a standard local Python venv and installs dependencies with pip, on Windows, macOS or Linux. No uv or Windows py launcher is required.
+Edit the root `.env.local` file and set your real Neon `DATABASE_URL`.
+Then verify the connection setting without revealing its value:
+
+```bash
+yarn env:check
+yarn dev
+```
+
+The launcher automatically reads this Git-ignored file for all Python
+ingestion, API, dashboard, and migration commands. Environment variables
+already configured in the terminal take precedence over `.env.local`.
+Python 3.12+, Node.js 20+, and Yarn 1 are required; no `uv` or Windows
+`py` launcher is necessary.
 
 ### Run Python analysis service
 
@@ -135,7 +149,7 @@ Python 3.12+ is required (Node.js 20+ and Yarn 1 are also required). The setup c
 yarn dev:analysis
 ```
 
-To use observed marketplace data instead, export a Neon `DATABASE_URL` in the same shell before starting the service.
+For Neon-backed official datasets, set `DATABASE_URL` in the root `.env.local`. The launcher passes it to the service automatically.
 
 ### Run the business dashboard
 
@@ -181,8 +195,7 @@ curl "http://localhost:8000/v1/vehicles/valuation?make=Toyota&model=Avanza&year=
 Fin Engine uses PostgreSQL for durable ingestion history. Neon is the initial hosted provider.
 
 ```bash
-export DATABASE_URL='postgresql://USER:PASSWORD@...-pooler....neon.tech/neondb?sslmode=require'
-
+# Configure DATABASE_URL in .env.local once, then:
 yarn migrate upgrade head
 ```
 
