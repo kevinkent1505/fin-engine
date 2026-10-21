@@ -106,7 +106,8 @@ class BpsVehicleStockAdapter:
                     page.wait_for_function(
                         """(minRows) =>
                         Array.from(document.querySelectorAll('tr')).filter(
-                          row => row.querySelectorAll('td').length >= 6
+                          row => row.querySelectorAll('td,th').length >= 6 &&
+                            row.querySelectorAll('td').length >= 5
                         ).length >= minRows""",
                         arg=BPS_MIN_LIVE_ROWS,
                         timeout=BPS_BROWSER_TIMEOUT_SECONDS * 1000,
