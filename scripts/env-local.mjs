@@ -18,7 +18,7 @@ export function parseEnvLocal(source) {
     const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
     if (!match) {
       throw new Error(
-        \`Invalid .env.local syntax at line \${index + 1}: expected KEY=VALUE.\`,
+        `Invalid .env.local syntax at line ${index + 1}: expected KEY=VALUE.`,
       );
     }
 
@@ -39,7 +39,7 @@ export function parseEnvLocal(source) {
       const trailing = end < 0 ? "" : remainder.slice(end + 1).trim();
       if (end < 0 || (trailing && !trailing.startsWith("#"))) {
         throw new Error(
-          \`Invalid quoted value in .env.local at line \${index + 1}.\`,
+          `Invalid quoted value in .env.local at line ${index + 1}.`,
         );
       }
 
