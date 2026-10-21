@@ -36,6 +36,51 @@ The launcher uses Node.js rather than Bash/PowerShell to manage processes, and i
 
 ## Environment variables
 
+### Project-local `.env.local` (recommended)
+
+Create a file named `.env.local` **at the repository root**, next to
+`package.json`, or copy the safe template:
+
+```bash
+cp .env.local.example .env.local
+```
+
+Then insert your actual Neon database connection string into
+`fin-engine/.env.local`:
+
+```dotenv
+DATABASE_URL="postgresql://USER:PASSWORD@HOST/neondb?sslmode=require"
+ANALYSIS_BASE_URL=http://localhost:8001
+```
+
+The `yarn dev`, `yarn dev:analysis`, `yarn dev:api`,
+`yarn dev:dashboard`, `yarn refresh:bps`, `yarn refresh:njkb`,
+`yarn refresh:official`, `yarn ingest`, `yarn migrate`, and Python
+test commands load the root `.env.local` automatically via the Node launcher.
+This works on Windows (Git Bash or PowerShell), macOS, and Linux without
+manual shell exports, `uv`, or an extra npm package.
+
+Check configuration status **without printing your password**:
+
+```bash
+yarn env:check
+```
+
+**Precedence:** Existing environment variables (including permanent Windows
+user variables or values exported in the current terminal) override
+`.env.local`. If you want the file's `DATABASE_URL` to take effect, unset
+the old value in that shell (`unset DATABASE_URL` in Git Bash) or remove
+your old permanent Windows user variable and reopen the terminal.
+Missing keys fall back to existing launcher defaults. Restart running
+services after editing `.env.local`.
+
+The loader reads values as text; no command substitution or shell execution
+occurs. Use quotes for values with spaces, comments, or special characters.
+The root `.env.local` file is Git-ignored. Keep it private: it contains
+plaintext credentials, and avoid copying or pasting its contents into
+issue reports or logs. Docker and cloud deployments use their own
+environment/secret configuration, not this local file.
+
 Do not commit real credentials.
 
 | Variable | Used by | Purpose |
@@ -102,9 +147,12 @@ The command **does not start any crawler or ingestion job**. Crawlers remain exp
 
 `Ctrl+C` stops the full stack. If one application exits unexpectedly, the launcher stops the remaining processes instead of leaving a partially running stack behind.
 
-Environment variables set in your terminal before `yarn dev` are inherited by the services. Use `export DATABASE_URL='...'` in Git Bash/macOS/Linux, or `$env:DATABASE_URL = '...'` in PowerShell. For example, to use Neon-backed valuation:
+The launcher automatically loads the root `.env.local` as described
+above. You can still override individual settings using environment variables
+in the terminal when needed:
 
 ```bash
+# Git Bash / macOS / Linux only:
 export DATABASE_URL='postgresql://USER:PASSWORD@HOST-pooler.../neondb?sslmode=require'
 yarn dev
 ```
