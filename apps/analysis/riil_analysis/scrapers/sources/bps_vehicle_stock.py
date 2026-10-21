@@ -151,7 +151,7 @@ class BpsVehicleStockAdapter:
             heading.get_text(" ", strip=True)
             for heading in page.find_all(["h1", "h2"])
         )
-        if not re.search(rf"\\b{self.year}\\b", headings):
+        if not re.search(rf"\b{self.year}\b", headings):
             raise ValueError(
                 f"BPS live page heading does not identify year {self.year}; "
                 "refusing to relabel another publication."
