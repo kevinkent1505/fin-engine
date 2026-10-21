@@ -1,6 +1,9 @@
 """Central Fin Engine configuration registry."""
 
 from .sources import (
+    BPS_BROWSER_CHANNELS,
+    BPS_BROWSER_TIMEOUT_SECONDS,
+    BPS_MIN_LIVE_ROWS,
     DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS,
     FIN_ENGINE_USER_AGENT,
     INDONESIA_REGION,
@@ -13,6 +16,9 @@ from .sources import (
 )
 
 __all__ = [
+    "BPS_BROWSER_CHANNELS",
+    "BPS_BROWSER_TIMEOUT_SECONDS",
+    "BPS_MIN_LIVE_ROWS",
     "DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS",
     "FIN_ENGINE_USER_AGENT",
     "INDONESIA_REGION",
