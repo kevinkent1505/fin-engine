@@ -6,6 +6,7 @@ import hashlib
 import io
 from pathlib import Path
 import re
+import sys
 
 from bs4 import BeautifulSoup
 import httpx
@@ -142,9 +143,20 @@ class BpsVehicleStockAdapter:
         )
 
     def _validate_live_snapshot(
-        self, records: list[RegionalVehicleStatisticInput]
+        self, records: list[RegionalVehicleStatisticInput], payload: bytes
     ) -> None:
-        """Reject a paginated or incomplete live table before persistence."""
+        """Reject wrong-year, paginated, or incomplete live table data."""
+        page = BeautifulSoup(payload, "html.parser")
+        headings = " ".join(
+            heading.get_text(" ", strip=True)
+            for heading in page.find_all(["h1", "h2"])
+        )
+        if not re.search(rf"\\b{self.year}\\b", headings):
+            raise ValueError(
+                f"BPS live page heading does not identify year {self.year}; "
+                "refusing to relabel another publication."
+            )
+
         regions = {record.region for record in records}
         required = {"Aceh", "DKI Jakarta", "Jawa Timur", "Indonesia"}
         if len(regions) < BPS_MIN_LIVE_ROWS or not required.issubset(regions):
@@ -310,15 +322,22 @@ class BpsVehicleStockAdapter:
 
         self._used_browser = False
         try:
-            direct_records = self.parse(self.fetch())
-            self._validate_live_snapshot(direct_records)
+            direct_payload = self.fetch()
+            direct_records = self.parse(direct_payload)
+            self._validate_live_snapshot(direct_records, direct_payload)
             return direct_records
         except (ValueError, httpx.HTTPError) as direct_error:
             # The BPS HTML response usually omits JavaScript-rendered rows.
             # Retry once using an ordinary browser; never persist partial data.
+            print(
+                f"BPS HTTP table incomplete ({direct_error}); "
+                "loading the official page in a browser...",
+                file=sys.stderr,
+            )
             try:
-                rendered_records = self.parse(self.fetch_rendered())
-                self._validate_live_snapshot(rendered_records)
+                browser_payload = self.fetch_rendered()
+                rendered_records = self.parse(browser_payload)
+                self._validate_live_snapshot(rendered_records, browser_payload)
                 return rendered_records
             except Exception as browser_error:
                 raise RuntimeError(
