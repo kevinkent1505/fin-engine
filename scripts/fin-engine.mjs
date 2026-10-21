@@ -9,8 +9,10 @@ import { existsSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { loadEnvLocal } from "./env-local.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const localEnvStatus = loadEnvLocal({ root });
 const analysis = path.join(root, "apps", "analysis");
 const venv = path.join(analysis, ".venv");
 const onWindows = process.platform === "win32";
@@ -230,11 +232,41 @@ function dev() {
 async function main() {
   const [, , command, ...args] = process.argv;
 
+  if (localEnvStatus.found) {
+    console.log("Loaded root .env.local (existing environment variables take precedence).");
+  }
+
   switch (command) {
     case "setup":
       return setup();
     case "dev":
       return dev();
+    case "env-check":
+      console.log(
+        "DATABASE_URL:",
+        process.env.DATABASE_URL ? "configured" : "missing",
+      );
+      console.log(
+        ".env.local:",
+        localEnvStatus.found ? "found" : "not found",
+      );
+      return process.env.DATABASE_URL ? 0 : 1;
+    case "api":
+      return run(
+        onWindows ? "cmd.exe" : "yarn",
+        onWindows
+          ? ["/d", "/s", "/c", "yarn workspace @fin-engine/api dev"]
+          : ["workspace", "@fin-engine/api", "dev"],
+        { cwd: root },
+      );
+    case "dashboard":
+      return run(
+        onWindows ? "cmd.exe" : "yarn",
+        onWindows
+          ? ["/d", "/s", "/c", "yarn workspace @fin-engine/dashboard dev"]
+          : ["workspace", "@fin-engine/dashboard", "dev"],
+        { cwd: root },
+      );
     case "analysis":
       return pythonCommand([
         "-m", "uvicorn", "riil_analysis.main:app", "--reload",
@@ -263,7 +295,7 @@ async function main() {
     default:
       console.error(
         "Usage: node scripts/fin-engine.mjs " +
-        "<setup|setup-bps-browser|dev|analysis|refresh-official|refresh-njkb|refresh-bps|ingest|test|migrate>",
+        "<setup|setup-bps-browser|env-check|dev|api|dashboard|analysis|refresh-official|refresh-njkb|refresh-bps|ingest|test|migrate>",
       );
       return 2;
   }
