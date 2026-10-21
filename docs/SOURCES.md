@@ -65,10 +65,34 @@ This dataset is regional market context, not vehicle-level price evidence. It is
 The registered 2025 BPS source is the official BPS statistical table:
 https://www.bps.go.id/id/statistics-table/3/VjJ3NGRGa3dkRk5MTlU1bVNFOTVVbmQyVURSTVFUMDkjMyMwMDAw/jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan--unit-.html?year=2025
 
-The site may render rows using JavaScript. Its initial HTML response can be
-incomplete even though a browser shows the table. In that case, `yarn
-refresh:bps` correctly exits non-zero without persisting data; retrying the
-same request does not address the missing table rows.
+The BPS website renders its statistics table dynamically. Fin Engine first tries
+the official HTTP page; if the complete table is absent, the adapter now uses
+**Playwright** to load the same public BPS URL in a real browser, waits until
+the rows render, and validates the year and completeness before persistence.
+This is ordinary browser automation; it does not bypass authentication,
+CAPTCHA, or other access controls.
+
+Platform-independent setup:
+
+```bash
+yarn setup                 # installs Python browser integration
+yarn refresh:bps           # HTTP first, browser fallback automatically
+```
+
+On Windows, Fin Engine tries the installed Microsoft Edge browser first,
+then Chrome, then Playwright's Chromium. On macOS/Linux, Chrome and bundled
+Chromium are also supported. If no compatible browser is installed:
+
+```bash
+yarn setup:bps-browser     # installs Playwright's Chromium once
+yarn refresh:bps
+```
+
+The live data quality gate requires at least 25 rows including Aceh, DKI
+Jakarta, Jawa Timur, and the national Indonesia row to guard against
+pagination/incomplete loads. Missing/blocked sources fail clearly without
+inserting data. Live browser ingestion records
+`acquisition=public_statistics_table_browser` for provenance.
 
 ### Preferred import: official BPS CSV export
 
