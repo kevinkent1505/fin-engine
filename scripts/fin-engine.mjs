@@ -274,6 +274,8 @@ async function main() {
       ]);
     case "refresh-official":
       return pythonCommand(["-m", "riil_analysis.cli", "refresh-official"]);
+    case "refresh-data":
+      return pythonCommand(["-m", "riil_analysis.cli", "refresh-data", ...args]);
     case "refresh-njkb":
       return pythonCommand([
         "-m", "riil_analysis.cli", "ingest",
@@ -295,7 +297,7 @@ async function main() {
     default:
       console.error(
         "Usage: node scripts/fin-engine.mjs " +
-        "<setup|setup-bps-browser|env-check|dev|api|dashboard|analysis|refresh-official|refresh-njkb|refresh-bps|ingest|test|migrate>",
+        "<setup|setup-bps-browser|env-check|dev|api|dashboard|analysis|refresh-data|refresh-official|refresh-njkb|refresh-bps|ingest|test|migrate>",
       );
       return 2;
   }
