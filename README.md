@@ -89,6 +89,17 @@ comparable_market_v1
 
 This keeps development easy while allowing the same analysis endpoint to become genuinely observation-backed as Neon fills with authorized marketplace data.
 
+## Automatic public data refresh
+
+With a configured Neon `DATABASE_URL`, starting the Python analysis API (including `yarn dev`) starts a non-blocking background check for stale public NJKB, BPS and DJP data. It rechecks every 12 hours while running, and the GitHub Actions workflow `Refresh official public data` can perform weekly checks independently after you configure repository secret `FIN_ENGINE_DATABASE_URL`.
+
+```bash
+yarn refresh:data           # update only stale government sources
+yarn refresh:data --force   # re-fetch all public sources
+```
+
+The scheduler uses successful `ingestion_runs` in Neon as freshness evidence and uses a database advisory lock to avoid duplicate concurrent work. Marketplace crawling remains explicit and permission-gated. Review [Local Development](./docs/DEVELOPMENT.md) for configuration.
+
 ## Data semantics
 
 Fin Engine does not treat every vehicle value as the same type of price.
