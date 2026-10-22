@@ -1,12 +1,12 @@
 # Fin Engine
 
-B2B financial data and analysis platform for Riil.
+Independent financial data and intelligence platform. Riil is an initial potential data partner and future optional consumer, not a runtime dependency.
 
 Fin Engine turns vehicle-market and official reference data into traceable analytical signals for future collateral intelligence, valuation and underwriting-support products.
 
 For a non-technical explanation of the product, target customers, use cases, data signals, limitations, commercial options and roadmap, see the [Business Overview](./docs/BUSINESS.md).
 
-For the cross-repository plan with Riil, see [Riil + Fin Engine Integration Roadmap](./docs/RIIL_INTEGRATION_ROADMAP.md). **Fin Engine remains a separate, independently deployable and modular data/analysis platform**; Riil consumes stable contracts without sharing application code or databases.
+For the cross-repository plan with Riil, see [Riil + Fin Engine Integration Roadmap](./docs/RIIL_INTEGRATION_ROADMAP.md). **Both products remain independently operable and developable.** In the first phase, Riil may publish approved data to Fin Engine through an asynchronous adapter. In later phases, Fin Engine may supply source-backed indicators back to Riil through a separate inbound adapter. Neither product shares application internals or databases.
 
 ## Current status
 
