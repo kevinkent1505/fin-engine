@@ -313,3 +313,76 @@ def test_bps_rejects_live_table_with_incorrect_publication_year(
     monkeypatch.setattr(adapter, "fetch_rendered", lambda: payload)
     with pytest.raises(RuntimeError, match="heading does not identify year"):
         adapter.run()
+
+def test_official_csv_export_url_can_supply_complete_snapshot(monkeypatch) -> None:
+    import httpx
+    from riil_analysis.scrapers.sources import bps_vehicle_stock
+
+    soup = BeautifulSoup(_complete_live_html(), "html.parser")
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["BPS Jumlah Kendaraan Bermotor Menurut Provinsi 2025"])
+    writer.writerow(["No", "Provinsi", "Mobil Penumpang", "Bus", "Truk",
+                     "Sepeda Motor", "Jumlah Kendaraan Bermotor"])
+    for tr in soup.find_all("tr"):
+        writer.writerow([td.get_text(" ", strip=True) for td in tr.find_all("td")])
+    csv_content = output.getvalue().encode("utf-8")
+    monkeypatch.setenv(
+        "BPS_VEHICLE_STOCK_CSV_URL",
+        "https://www.bps.go.id/statistics-table/official-export.csv",
+    )
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url):
+            return httpx.Response(
+                200, request=httpx.Request("GET", url), content=csv_content
+            )
+
+    monkeypatch.setattr(bps_vehicle_stock.httpx, "Client", FakeClient)
+    rows = BpsVehicleStock2025Adapter().run()
+
+    assert len(rows) >= 25
+    assert any(row.region == "DKI Jakarta" for row in rows)
+    assert rows[0].metadata["acquisition"] == "official_bps_csv_export_url"
+    assert len(rows[0].metadata["import_sha256"]) == 64
+
+
+def test_bps_403_fails_fast_without_browser_automation(monkeypatch) -> None:
+    import httpx
+    from riil_analysis.scrapers.sources import bps_vehicle_stock
+
+    monkeypatch.delenv("BPS_VEHICLE_STOCK_CSV_URL", raising=False)
+    adapter = BpsVehicleStock2025Adapter()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url):
+            return httpx.Response(
+                403, request=httpx.Request("GET", url), content=b"blocked"
+            )
+
+    monkeypatch.setattr(bps_vehicle_stock.httpx, "Client", FakeClient)
+    monkeypatch.setattr(
+        adapter, "fetch_rendered",
+        lambda: (_ for _ in ()).throw(AssertionError("Never retry 403 with browser")),
+    )
+
+    with pytest.raises(RuntimeError, match="BPS refused automated HTTP access"):
+        adapter.run()

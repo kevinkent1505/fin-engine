@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 40
     env:
       DATABASE_URL: ${{ secrets.FIN_ENGINE_DATABASE_URL }}
+      BPS_VEHICLE_STOCK_CSV_URL: ${{ secrets.BPS_VEHICLE_STOCK_CSV_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

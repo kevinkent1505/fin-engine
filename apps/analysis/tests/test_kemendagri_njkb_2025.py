@@ -131,3 +131,45 @@ def test_numeric_make_is_ignored_even_with_clean_year() -> None:
     )
 
     assert result is None
+
+def test_official_pdf_file_can_be_imported_without_network(tmp_path) -> None:
+    import hashlib
+
+    adapter = KemendagriNjkb2025Adapter()
+    file = tmp_path / "permendagri-7-2025.pdf"
+    file.write_bytes(b"%PDF-test-official-snapshot")
+    adapter.set_input_path(file)
+
+    assert adapter.fetch() == b"%PDF-test-official-snapshot"
+    assert adapter._downloaded_from == "manual_official_pdf_snapshot"
+    assert adapter._content_sha256 == hashlib.sha256(file.read_bytes()).hexdigest()
+
+
+def test_njkb_download_tries_government_jdih_after_bpk_denial(monkeypatch) -> None:
+    import httpx
+    from riil_analysis.scrapers.sources import kemendagri_njkb
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url, headers):
+            request = httpx.Request("GET", url)
+            status = 200 if "jdih.acehprov.go.id" in url else 403
+            return httpx.Response(
+                status,
+                request=request,
+                content=b"%PDF-official-mirror" if status == 200 else b"blocked",
+            )
+
+    monkeypatch.setattr(kemendagri_njkb.httpx, "Client", FakeClient)
+    adapter = KemendagriNjkb2025Adapter()
+
+    assert adapter.fetch() == b"%PDF-official-mirror"
+    assert "jdih.acehprov.go.id" in adapter._downloaded_from

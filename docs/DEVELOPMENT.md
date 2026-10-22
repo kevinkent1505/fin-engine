@@ -361,3 +361,11 @@ The dashboard is connected to the Python analysis service, but that service does
 ### Public API returns `502 analysis_unavailable`
 
 Confirm the Python service is running and that the API's `ANALYSIS_BASE_URL` is correct.
+
+## Troubleshooting scheduled government-source HTTP 403
+
+If GitHub-hosted runners receive HTTP 403 from BPK or BPS, that is a source-access restriction, **not** a Neon error. The NJKB adapter now also attempts a government JDIH copy of the same regulation. Where no download host is accessible, save a genuine official PDF locally and import with `yarn ingest --source njkb_latest --input-file path/to/official.pdf --persist-db`.
+
+BPS may restrict automated page access; the code now stops immediately on HTTP 401/403 instead of retrying three automated browsers. To enable unattended 2025 BPS updates, obtain an authorized direct official BPS CSV export URL, verify that it returns the complete 2025 provincial table, and set root `.env.local` `BPS_VEHICLE_STOCK_CSV_URL` to that HTTPS `*.bps.go.id` URL. For GitHub Actions, set a repository Actions secret named `BPS_VEHICLE_STOCK_CSV_URL`. The import verifies the year, headings, row coverage and published totals. **Do not use a third-party mirror, scraped browser challenge, or an arbitrary CSV.** An export link may expire; if unavailable, BPS will report a source failure rather than inventing values.
+
+If no suitable automated URL is available, export BPS's public table manually as CSV and use `yarn ingest --source vehicle_stock_latest --input-file path/to/bps-2025.csv --persist-db`. Successful DJP and other public-source ingestions are preserved even if one source is blocked. For full automation through BPS WebAPI, register at `https://webapi.bps.go.id/developer` and implement a verified, dataset-specific adapter before scheduling; a WebAPI key alone is not enough for this current CSV-based configuration.

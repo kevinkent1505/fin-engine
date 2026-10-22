@@ -4,9 +4,11 @@ import csv
 from datetime import UTC, datetime
 import hashlib
 import io
+import os
 from pathlib import Path
 import re
 import sys
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 import httpx
@@ -41,11 +43,15 @@ class BpsVehicleStockAdapter:
     def __init__(self) -> None:
         self.input_path: Path | None = None
         self._used_browser = False
+        self._remote_csv_export = False
+        self._official_export_download = None
 
     def set_input_path(self, path: Path | None) -> None:
         """Use an official BPS HTML or CSV export instead of a live request."""
         self.input_path = path
         self._used_browser = False
+        self._remote_csv_export = False
+        self._official_export_download = None
 
     def fetch(self) -> bytes:
         if self.input_path is not None:
@@ -55,6 +61,50 @@ class BpsVehicleStockAdapter:
                     "(.html/.htm) or table export (.csv)."
                 )
             return self.input_path.read_bytes()
+
+        export_url = os.getenv("BPS_VEHICLE_STOCK_CSV_URL", "").strip()
+        if export_url:
+            parsed = urlparse(export_url)
+            host = (parsed.hostname or "").lower()
+            if (
+                parsed.scheme != "https"
+                or not host
+                or not (host == "bps.go.id" or host.endswith(".bps.go.id"))
+                or parsed.username is not None
+                or parsed.password is not None
+            ):
+                raise ValueError(
+                    "BPS_VEHICLE_STOCK_CSV_URL must be an HTTPS link "
+                    "hosted directly on an official *.bps.go.id domain."
+                )
+            try:
+                with httpx.Client(
+                    follow_redirects=True,
+                    timeout=SOURCE_CONFIG.timeout_seconds,
+                    headers={"User-Agent": FIN_ENGINE_USER_AGENT},
+                ) as client:
+                    response = client.get(export_url)
+                    response.raise_for_status()
+            except httpx.HTTPError as error:
+                # Avoid emitting potential private export-query parameters.
+                raise ValueError(
+                    f"Official BPS CSV export request failed: {type(error).__name__}. "
+                    "Verify the configured BPS export URL and access rights."
+                ) from error
+
+            final_host = (response.url.host or "").lower()
+            if not (
+                final_host == "bps.go.id"
+                or final_host.endswith(".bps.go.id")
+            ):
+                raise ValueError("BPS CSV export redirected off the official BPS domain.")
+            if len(response.content) > 20_000_000:
+                raise ValueError("BPS CSV export exceeds the 20 MB safety limit.")
+            self._remote_csv_export = True
+            self._official_export_download = (
+                f"{response.url.scheme}://{final_host}{response.url.path}"
+            )
+            return response.content
 
         with httpx.Client(
             follow_redirects=True,
@@ -152,7 +202,7 @@ class BpsVehicleStockAdapter:
             heading.get_text(" ", strip=True)
             for heading in page.find_all(["h1", "h2"])
         )
-        if not re.search(rf"\b{self.year}\b", headings):
+        if not self._remote_csv_export and not re.search(rf"\b{self.year}\b", headings):
             raise ValueError(
                 f"BPS live page heading does not identify year {self.year}; "
                 "refusing to relabel another publication."
@@ -168,7 +218,9 @@ class BpsVehicleStockAdapter:
             )
 
     def _input_rows(self, payload: bytes) -> list[list[str]]:
-        if self.input_path is not None and self.input_path.suffix.lower() == ".csv":
+        if self._remote_csv_export or (
+            self.input_path is not None and self.input_path.suffix.lower() == ".csv"
+        ):
             try:
                 text = payload.decode("utf-8-sig")
             except UnicodeDecodeError as error:
@@ -233,7 +285,13 @@ class BpsVehicleStockAdapter:
 
         acquisition = "public_statistics_table"
         provenance: dict[str, str] = {}
-        if self.input_path is not None:
+        if self._remote_csv_export:
+            acquisition = "official_bps_csv_export_url"
+            provenance = {
+                "export_url": self._official_export_download or self.source_url,
+                "import_sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        elif self.input_path is not None:
             suffix = self.input_path.suffix.lower()
             acquisition = (
                 "manual_official_csv_export"
@@ -322,12 +380,34 @@ class BpsVehicleStockAdapter:
             return self.parse(self.fetch())
 
         self._used_browser = False
+        self._remote_csv_export = False
         try:
             direct_payload = self.fetch()
             direct_records = self.parse(direct_payload)
             self._validate_live_snapshot(direct_records, direct_payload)
             return direct_records
         except (ValueError, httpx.HTTPError) as direct_error:
+            if os.getenv("BPS_VEHICLE_STOCK_CSV_URL", "").strip():
+                raise RuntimeError(
+                    "Official BPS CSV export failed validation; no incomplete "
+                    "data were saved. Check source year, province coverage "
+                    "and totals."
+                ) from direct_error
+
+            if isinstance(direct_error, httpx.HTTPStatusError) and (
+                direct_error.response.status_code in (401, 403)
+            ):
+                raise RuntimeError(
+                    "BPS refused automated HTTP access (HTTP "
+                    f"{direct_error.response.status_code}). Do not retry "
+                    "with a browser or bypass access controls. Configure "
+                    "BPS_VEHICLE_STOCK_CSV_URL with an approved official "
+                    "CSV export from BPS, or import its exported CSV using "
+                    "yarn ingest --source vehicle_stock_latest "
+                    "--input-file path/to/bps-2025.csv --persist-db. "
+                    "No incomplete data were saved."
+                ) from direct_error
+
             # The BPS HTML response usually omits JavaScript-rendered rows.
             # Retry once using an ordinary browser; never persist partial data.
             print(

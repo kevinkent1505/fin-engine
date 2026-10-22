@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import hashlib
 import io
 import re
 
@@ -18,35 +19,56 @@ class KemendagriNjkbAdapter(VehicleSourceAdapter):
 
     source_id = SOURCE_CONFIG.source_id
     source_url = SOURCE_CONFIG.source_url
-    download_urls = SOURCE_CONFIG.download_urls
+    # Official government-hosted JDIH copy of the 2025 regulation.
+    government_mirror_urls = (
+        "https://jdih.acehprov.go.id/dih/view/"
+        "4c313164-4a46-4ca0-a6b1-a76b29e5ca77",
+    )
+    download_urls = SOURCE_CONFIG.download_urls + government_mirror_urls
 
     def fetch(self) -> bytes:
-        if not self.download_urls:
-            raise ValueError(
-                f"No download URL configured for official source {self.source_id}."
-            )
+        self._downloaded_from = None
+        self._content_sha256 = None
+
+        # Support explicitly downloaded official snapshots if cloud access is
+        # restricted. Do not silently substitute unrelated PDFs.
+        if self.input_path is not None:
+            if self.input_path.suffix.lower() != ".pdf":
+                raise ValueError("NJKB --input-file must be an official PDF (.pdf).")
+            payload = self.input_path.read_bytes()
+            if not payload.startswith(b"%PDF"):
+                raise ValueError("NJKB --input-file was not a PDF.")
+            self._downloaded_from = "manual_official_pdf_snapshot"
+            self._content_sha256 = hashlib.sha256(payload).hexdigest()
+            return payload
 
         failures: list[str] = []
-
         with httpx.Client(
             follow_redirects=True,
             timeout=SOURCE_CONFIG.timeout_seconds,
             headers={
                 "User-Agent": FIN_ENGINE_USER_AGENT,
                 "Accept": SOURCE_CONFIG.accept_header,
-                "Referer": SOURCE_CONFIG.source_url,
             },
         ) as client:
             for url in self.download_urls:
                 try:
-                    response = client.get(url)
+                    # Only BPK endpoints receive the BPK referer.
+                    headers = (
+                        {"Referer": SOURCE_CONFIG.source_url}
+                        if url.startswith("https://peraturan.bpk.go.id/")
+                        else {}
+                    )
+                    response = client.get(url, headers=headers)
                     response.raise_for_status()
                 except httpx.HTTPError as error:
-                    failures.append(f"{url}: {error}")
+                    failures.append(f"{url}: {type(error).__name__}")
                     continue
 
                 payload = response.content
                 if payload.startswith(b"%PDF"):
+                    self._downloaded_from = str(response.url)
+                    self._content_sha256 = hashlib.sha256(payload).hexdigest()
                     return payload
 
                 failures.append(
@@ -55,8 +77,11 @@ class KemendagriNjkbAdapter(VehicleSourceAdapter):
                 )
 
         raise ValueError(
-            "NJKB source could not be downloaded from any configured official "
-            "document endpoint. " + " | ".join(failures)
+            "NJKB source could not be downloaded from official BPK or the "
+            "government JDIH mirror. Download the official PDF and import "
+            "with 'yarn ingest --source njkb_latest "
+            "--input-file path/to/official.pdf --persist-db'. "
+            + " | ".join(failures)
         )
 
     def parse(self, payload: bytes) -> list[RawVehicleObservation]:
@@ -182,6 +207,8 @@ class KemendagriNjkbAdapter(VehicleSourceAdapter):
                 "release_year": SOURCE_CONFIG.release_year,
                 "regulation": SOURCE_CONFIG.publication_label,
                 "reference_type": "official_njkb",
+                "acquisition_url": getattr(self, "_downloaded_from", None),
+                "document_sha256": getattr(self, "_content_sha256", None),
             },
         )
 
