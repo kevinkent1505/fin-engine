@@ -55,7 +55,7 @@ ANALYSIS_BASE_URL=http://localhost:8001
 
 The `yarn dev`, `yarn dev:analysis`, `yarn dev:api`,
 `yarn dev:dashboard`, `yarn refresh:bps`, `yarn refresh:njkb`,
-`yarn refresh:official`, `yarn ingest`, `yarn migrate`, and Python
+`yarn refresh:official`, `yarn refresh:data`, `yarn ingest`, `yarn migrate`, and Python
 test commands load the root `.env.local` automatically via the Node launcher.
 This works on Windows (Git Bash or PowerShell), macOS, and Linux without
 manual shell exports, `uv`, or an extra npm package.
@@ -88,6 +88,8 @@ Do not commit real credentials.
 | `ANALYSIS_BASE_URL` | TypeScript API + dashboard server | Python analysis-service URL |
 | `VEHICLE_DATA_PATH` | Python analysis | Development comparable CSV when no DB is configured |
 | `DATABASE_URL` | Python analysis + ingestion | Neon/PostgreSQL connection; also enables DB-backed valuation |
+| `FIN_ENGINE_AUTO_REFRESH` | Python analysis service | `true` (default) enables non-blocking startup and periodic public-source freshness checks when Neon is configured |
+| `FIN_ENGINE_REFRESH_CHECK_HOURS` | Python analysis service | How often to check due sources while running (default 12 hours; minimum 1) |
 | `DASHBOARD_VEHICLE_MAKE` | dashboard server | POC selected make |
 | `DASHBOARD_VEHICLE_MODEL` | dashboard server | POC selected model |
 | `DASHBOARD_VEHICLE_YEAR` | dashboard server | POC selected year |
@@ -143,7 +145,9 @@ API         http://localhost:8000
 Analysis    http://localhost:8001
 ```
 
-The command **does not start any crawler or ingestion job**. Crawlers remain explicit CLI/batch operations so local development cannot accidentally trigger marketplace collection.
+The command starts **automatic best-effort public government data refresh** from the Python analysis service when `DATABASE_URL` is configured. The refresh runs in the background, so API requests do not wait for BPS, NJKB or DJP. It checks freshness at startup and every 12 hours while running. A PostgreSQL advisory lock prevents multiple analysis workers from refreshing simultaneously. A public source failure is logged and does not shut down the API.
+
+**Permission-gated OLX, Mobil123 and Carmudi crawlers are never started automatically**; they still require explicit authorization and separate batch jobs.
 
 `Ctrl+C` stops the full stack. If one application exits unexpectedly, the launcher stops the remaining processes instead of leaving a partially running stack behind.
 
@@ -158,6 +162,24 @@ yarn dev
 ```
 
 Without `DATABASE_URL`, the analysis service uses the committed development comparable CSV through the default `VEHICLE_DATA_PATH`.
+
+## Updating public data
+
+For a one-off refresh of only stale sources:
+
+```bash
+yarn refresh:data
+```
+
+To re-fetch all configured public government sources even if recent:
+
+```bash
+yarn refresh:data --force
+```
+
+The command writes successful results to Neon. Official NJKB is due after 90 days, BPS vehicle stock after 30 days, and DJP auction announcements after 7 days; all intervals are configurable in `apps/analysis/riil_analysis/refresh.py`. Source release years are still determined by `config/sources.py`, not by scraping an arbitrary new year's publication. Nothing fetches automatically without a configured `DATABASE_URL`.
+
+For updates **even when your laptop and API are switched off**, GitHub Actions includes a weekly refresh schedule. Configure the repository secret `FIN_ENGINE_DATABASE_URL` (your Neon database URL) in GitHub Settings → Secrets and variables → Actions; use the Actions tab → *Refresh official public data* → *Run workflow* to verify the first run. The weekly schedule then checks what is due. This requires GitHub-hosted runners to reach Neon and the public sources. Browser fallback for BPS is installed by that workflow. The workflow does not perform migrations or restricted marketplace crawls.
 
 ## Run individual components manually
 
