@@ -21,6 +21,12 @@ from riil_analysis.ingestion.models import (
 )
 from riil_analysis.ingestion.pipeline import normalize_records
 from riil_analysis.regional import RegionalVehicleStatisticInput
+from riil_analysis.scrapers.registry import (
+    ALL_SOURCE_IDS,
+    get_regional_source_adapter,
+    get_source_adapter,
+    is_regional_source,
+)
 
 
 CSV_FIELDS = [
