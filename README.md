@@ -8,6 +8,8 @@ For a non-technical explanation of the product, target customers, use cases, dat
 
 For the cross-repository plan with Riil, see [Riil + Fin Engine Integration Roadmap](./docs/RIIL_INTEGRATION_ROADMAP.md). **Both products remain independently operable and developable.** In the first phase, Riil may publish approved data to Fin Engine through an asynchronous adapter. In later phases, Fin Engine may supply source-backed indicators back to Riil through a separate inbound adapter. Neither product shares application internals or databases.
 
+**First integration milestone available:** [read-only Riil public market snapshot importer](./docs/RIIL_FEED_PHASE1.md), with independent source-validation, replay-safe indicator history and an explicit `yarn import:riil-market` preview/persist command. No reverse feed or behavioral-data export is enabled.
+
 ## Current status
 
 Implemented:
