@@ -1,34 +1,10 @@
 import { MetricCard } from "@/components/ui/metric-card";
 import { RegionalMarketChart } from "@/features/market-intelligence/regional-market-chart";
-import { requestAnalysisRegionalMarket } from "@/lib/data/analysis";
+import { getRegionalMarketData } from "@/lib/data";
 import { formatNumberCompact } from "@/lib/format";
 
 export default async function MarketIntelligencePage() {
-  const result = await requestAnalysisRegionalMarket();
-
-  if (result.status !== "ok") {
-    return (
-      <div className="glass-panel rounded-2xl p-5">
-        <div className="text-xs font-bold uppercase tracking-[0.18em] text-amber-800">
-          Official regional data unavailable
-        </div>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-          The latest persisted BPS vehicle-stock table is not available yet.
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
-          {result.detail}
-        </p>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
-          This page does not substitute demo regional values when the official source is unavailable.
-        </p>
-      </div>
-    );
-  }
-
-  const regionalMarket = result.data.regions.map((point) => ({
-    region: point.region,
-    passengerCars: point.passenger_cars,
-  }));
+  const { regionalMarket, regionalSource, isFallback } = await getRegionalMarketData();
   const totalPassengerCars = regionalMarket.reduce(
     (sum, item) => sum + item.passengerCars,
     0,
@@ -37,54 +13,76 @@ export default async function MarketIntelligencePage() {
     (a, b) => b.passengerCars - a.passengerCars,
   )[0];
   const averagePassengerCars = Math.round(
-    totalPassengerCars / regionalMarket.length,
+    totalPassengerCars / Math.max(regionalMarket.length, 1),
   );
 
   return (
     <div className="space-y-6 sm:space-y-7">
       <section>
         <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-900">
-          Regional market
+          Market overview
         </div>
         <h1 className="mt-2 max-w-4xl text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl md:text-4xl">
-          Official passenger-car population by province.
+          See where passenger cars are concentrated across selected provinces.
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700 md:text-base">
-          This page uses the persisted {result.data.year} Badan Pusat Statistik vehicle-stock table. It represents registered vehicle stock, not transaction prices or sales volume.
+          This page uses official BPS vehicle-count data. It shows the size of the passenger-car population in each province, not vehicle prices or sales volumes.
         </p>
-        <p className="mt-2 text-xs text-slate-600">
-          Official source snapshot observed at {new Date(result.data.observed_at).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}.
-        </p>
+      </section>
+
+      <section
+        className="glass-panel flex flex-col justify-between gap-4 rounded-2xl p-4 sm:flex-row sm:items-center sm:p-5"
+        aria-label="Regional data source and freshness"
+      >
+        <div className="min-w-0">
+          <div className="text-xs font-bold uppercase tracking-[0.14em] text-blue-900">
+            {isFallback ? "Bundled historical BPS snapshot" : "Persisted official BPS snapshot"}
+          </div>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{regionalSource.lastUpdated}</p>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-700">{regionalSource.note}</p>
+        </div>
+        {regionalSource.url ? (
+          <a
+            className="action-secondary w-full shrink-0 sm:w-auto"
+            href={regionalSource.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View BPS source <span className="sr-only">(opens in new tab)</span>
+          </a>
+        ) : null}
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Regional market summary">
         <MetricCard
           metric={{
-            label: "Passenger cars",
+            label: "Passenger cars shown",
             value: formatNumberCompact(totalPassengerCars),
-            helper: "Total across the official provincial records returned by BPS",
+            helper: "Total across the provinces shown, not all of Indonesia",
             tone: "positive",
           }}
         />
         <MetricCard
           metric={{
-            label: "Largest province",
-            value: largest.region,
-            helper: `${formatNumberCompact(largest.passengerCars)} passenger cars`,
+            label: "Province with the most cars",
+            value: largest?.region ?? "Not available",
+            helper: largest
+              ? `${formatNumberCompact(largest.passengerCars)} passenger cars`
+              : "No regional observations are available",
           }}
         />
         <MetricCard
           metric={{
-            label: "Regions reported",
+            label: "Provinces included",
             value: String(regionalMarket.length),
-            helper: `Official BPS ${result.data.year} rows currently persisted`,
+            helper: "Number of provinces in this view",
           }}
         />
         <MetricCard
           metric={{
-            label: "Average per region",
+            label: "Average cars per province",
             value: formatNumberCompact(averagePassengerCars),
-            helper: "Simple average across the official rows shown",
+            helper: "Simple average across the provinces shown",
           }}
         />
       </section>
@@ -95,7 +93,7 @@ export default async function MarketIntelligencePage() {
         <article className="glass-panel min-w-0 rounded-2xl p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-slate-950">Province-by-province comparison</h2>
           <p className="mt-1 text-xs leading-5 text-slate-700">
-            These are official public counts of passenger cars from BPS.
+            These are official public counts of passenger cars. A larger number means more passenger cars are registered in that province.
           </p>
 
           <div
@@ -104,12 +102,12 @@ export default async function MarketIntelligencePage() {
             aria-label="Scrollable regional comparison table"
           >
             <table className="w-full min-w-[28rem] border-collapse text-left text-xs">
-              <caption className="sr-only">Regional passenger-car counts and share of the returned official dataset</caption>
+              <caption className="sr-only">Regional passenger-car counts and each province&apos;s share of the provinces shown</caption>
               <thead className="bg-slate-100/90 text-slate-800">
                 <tr>
                   <th scope="col" className="px-3 py-3 font-bold">Province</th>
                   <th scope="col" className="px-3 py-3 text-right font-bold">Passenger cars</th>
-                  <th scope="col" className="px-3 py-3 text-right font-bold">Share</th>
+                  <th scope="col" className="px-3 py-3 text-right font-bold">Share of this view</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/90">
@@ -123,23 +121,38 @@ export default async function MarketIntelligencePage() {
                       {new Intl.NumberFormat("en", {
                         style: "percent",
                         maximumFractionDigits: 1,
-                      }).format(item.passengerCars / totalPassengerCars)}
+                      }).format(totalPassengerCars > 0 ? item.passengerCars / totalPassengerCars : 0)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          <a
-            href={result.data.source_url}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 block text-sm font-semibold text-blue-900 underline underline-offset-4"
-          >
-            Open official BPS source
-          </a>
         </article>
+      </section>
+
+      <section className="glass-panel rounded-2xl p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-slate-950">What could be added later</h2>
+        <div className="mt-5 grid gap-6 md:grid-cols-3">
+          <article>
+            <div className="text-lg font-semibold text-slate-950">How easy a vehicle is to sell</div>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              Combine the number of cars with active listings and how quickly listings disappear to estimate how active each regional market is.
+            </p>
+          </article>
+          <article>
+            <div className="text-lg font-semibold text-slate-950">How quickly prices move</div>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              Track repeated listings and price reductions to see whether sellers are lowering prices over time.
+            </p>
+          </article>
+          <article>
+            <div className="text-lg font-semibold text-slate-950">Monitor many vehicles at once</div>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              Compare value changes across many makes, models, years and locations instead of checking one vehicle at a time.
+            </p>
+          </article>
+        </div>
       </section>
     </div>
   );

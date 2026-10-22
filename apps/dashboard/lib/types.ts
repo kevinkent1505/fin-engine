@@ -68,7 +68,7 @@ export type VehicleSnapshot = {
 };
 
 export type AnalysisStatus = {
-  state: "database" | "demo" | "development" | "fallback";
+  state: "database" | "demo" | "development" | "fallback" | "no_data";
   method?: string;
   label: string;
   detail: string;
@@ -91,7 +91,7 @@ export type VehicleReferences = {
 };
 
 export type DashboardData = {
-  mode: "analysis" | "fallback";
+  mode: "analysis" | "fallback" | "unavailable";
   analysis: AnalysisStatus;
   snapshot: VehicleSnapshot;
   references: VehicleReferences;

@@ -27,6 +27,7 @@ apps/dashboard/
 │   ├── globals.css
 │   ├── page.tsx                  # Executive overview
 │   ├── vehicle/page.tsx          # Vehicle Intelligence
+│   ├── references/page.tsx       # Official NJKB references (no marketplace dependency)
 │   ├── market/page.tsx           # Market Intelligence
 │   └── methodology/page.tsx      # Data & Methodology
 │
@@ -49,7 +50,7 @@ apps/dashboard/
 └── lib/
     ├── data/
     │   ├── analysis.ts           # server-side Python analysis client
-    │   ├── index.ts              # dashboard data composition boundary
+    │   ├── index.ts              # dashboard data composition + BPS boundary
     │   └── poc.ts                # official context + explicit fallback fixture
     ├── format.ts
     └── types.ts
@@ -90,12 +91,14 @@ comparable_market_v1
 The dashboard labels these states separately:
 
 ```text
-database     analysis engine + persisted marketplace observations
-development  analysis engine + committed development comparables
-fallback     analysis unavailable / no comparable result; explicit POC fixture
+database     persisted real marketplace observations
+demo         synthetic POC observations persisted in Neon
+development  development comparables from CSV
+fallback     analysis service unreachable; default demo vehicle explicitly shown
+no_data      service reachable but no matching comparables; no substitute prices
 ```
 
-The fallback must never be silently represented as live analysis output.
+The fallback must never be silently represented as live analysis output. If a vehicle selection has no comparables, the page shows a dedicated unavailable state with no valuation metrics or charts. It does **not** substitute prices for an unrelated vehicle. If the service is unreachable altogether, the original default POC fixture is used but is explicitly labelled as a separate demo vehicle.
 
 ## Why the database query uses latest observations
 
@@ -109,9 +112,9 @@ The dashboard now separates three categories of evidence.
 
 **Analysis-engine asking-value signal:** comes from the Python service. It is marked `observed` when database-backed and `illustrative` when the service is using development comparables.
 
-**Official public context:** BPS passenger-car counts and Kemendagri NJKB references remain official reference data.
+**Official public context:** Regional passenger-car counts come from the BPS snapshot persisted in Neon when available. When that snapshot is unavailable, the dashboard shows a bundled historical 2023 BPS reference and labels it as static fallback. The default POC vehicle has a specific Kemendagri NJKB reference, but NJKB is not reused for other models.
 
-**Still illustrative:** the auction/downside signal and fallback price history remain POC placeholders until those histories are exposed through the analysis API.
+**Still illustrative:** the default POC auction/downside signal and valuation range are demonstration figures, not observed data. The previously illustrated multi-month price history was removed. Only a single example price point appears in fallback mode; the dashboard never draws an observed trend from fabricated dates.
 
 Regional Market Intelligence deliberately uses official BPS vehicle-stock data only; synthetic regional asking-price medians were removed from the POC.
 
@@ -127,17 +130,21 @@ illustrative
 
 ### Executive Overview
 
-Shows the current analysis-engine asking-value output, official NJKB reference, illustrative auction/downside signal, comparable range/count, regional BPS context, provenance, and a prominent analysis-status panel.
+Shows the current analysis-engine asking-value output, available matched reference signals, comparable range/count, regional BPS context, provenance, and a prominent analysis-status panel. When comparables are missing, it displays an empty state and independent BPS context instead of unrelated demo prices.
 
 ### Vehicle Intelligence
 
 Shows the selected vehicle segment, analysis-engine valuation, comparable range, source status, signal comparison, and evidence registry.
 
-When the analysis API exposes only a current snapshot, the chart displays one current point rather than fabricating historical observations.
+When the analysis API exposes only a current snapshot, the chart displays one current point rather than fabricating historical observations. Synthetic demo points are labelled illustrative; real database points are labelled observed. When the selected segment lacks comparables, no price is shown.
+
+### Official References
+
+The `/references` page is a separate official NJKB exploration surface using persisted government records only. It shows ranges when multiple variants match a model-year and does not substitute synthetic vehicle prices.
 
 ### Market Intelligence
 
-Uses official BPS vehicle-stock data for selected provinces. The POC does not invent regional asking prices. Future marketplace observations can add regional price/liquidity analytics after the data layer is populated.
+Loads regional BPS vehicle-stock data independently of the valuation request. The page displays the source year, whether the record is persisted or a historical bundled fallback, and a link to the BPS source. The POC does not invent regional asking prices.
 
 ### Data & Methodology
 
@@ -265,9 +272,17 @@ The preferred sequence is:
 3. expose persisted auction observations through analysis
 4. expose true price-history series through analysis
 5. add regional marketplace aggregation
-6. add dashboard filters/search
+6. expand filtering and discovery from the existing vehicle selector
 7. move external customer workflows through stable TypeScript API contracts
 ```
+
+
+## No-comparable and outage behavior
+
+- **No comparable rows (HTTP 404):** keep the requested make, model, year and region visible and show a no-data message. Do not substitute the POC Toyota Avanza value.
+- **Service unavailable:** use the separate labelled default POC demo vehicle, with no claim of observed listings or price history.
+- **Regional data outage:** show static 2023 BPS values, visibly dated and marked as a bundled historical snapshot; the Market page does not request a vehicle valuation.
+- **Navigation:** query-backed vehicle choices persist when moving between Overview and Vehicle Details.
 
 ## What does not belong in the dashboard
 

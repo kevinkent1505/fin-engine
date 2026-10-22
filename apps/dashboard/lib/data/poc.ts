@@ -25,7 +25,7 @@ export const pocDashboardData: DashboardData = {
     year: 2025,
     region: "DKI Jakarta",
     variant: "1.5 Veloz M/T",
-    sampleSize: 42,
+    sampleSize: 0,
     observedRange: [205_000_000, 252_000_000],
     lastRefresh: "Fallback POC fixture",
     values: [
@@ -48,14 +48,8 @@ export const pocDashboardData: DashboardData = {
         confidence: "illustrative",
       },
     ],
-    priceHistory: [
-      { date: "May", value: 241_000_000 },
-      { date: "Jun", value: 239_000_000 },
-      { date: "Jul", value: 237_000_000 },
-      { date: "Aug", value: 235_000_000 },
-      { date: "Sep", value: 233_000_000 },
-      { date: "Oct", value: 232_000_000 },
-    ],
+    // One illustrative snapshot only; no fabricated historical observations.
+    priceHistory: [{ date: "POC", value: 232_000_000 }],
   },
   references: {
     njkb: {

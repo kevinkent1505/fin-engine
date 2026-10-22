@@ -2,6 +2,7 @@ import { AnalysisStatus } from "@/components/ui/analysis-status";
 import { MetricCard } from "@/components/ui/metric-card";
 import { SourceBadge } from "@/components/ui/source-badge";
 import { VehicleChooser } from "@/components/ui/vehicle-chooser";
+import { ValuationUnavailable } from "@/components/ui/valuation-unavailable";
 import { PriceHistoryChart } from "@/features/vehicle-intelligence/price-history-chart";
 import { ValueComparisonChart } from "@/features/vehicle-intelligence/value-comparison-chart";
 import {
@@ -69,6 +70,23 @@ export default async function VehicleIntelligencePage({
   );
   const data = await getDashboardData(selected);
   const snapshot = data.snapshot;
+
+  if (data.analysis.state === "no_data") {
+    return (
+      <div className="space-y-6 sm:space-y-7">
+        <section>
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-900">Vehicle details</div>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+            {selected.make} {selected.model} {selected.year}
+          </h1>
+        </section>
+        <VehicleChooser catalog={catalog} selected={selected} />
+        <AnalysisStatus status={data.analysis} />
+        <ValuationUnavailable vehicle={selected} />
+      </div>
+    );
+  }
+
   const asking = snapshot.values.find((item) => item.kind === "listing")!;
   const njkbReference = data.references.njkb;
   const auctionReference = data.references.auctionLimit;
@@ -134,7 +152,9 @@ export default async function VehicleIntelligencePage({
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="inline-flex min-h-9 items-center rounded-full border border-slate-400/70 bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-900 shadow-sm backdrop-blur-md">
-              {snapshot.sampleSize} listings compared
+              {data.analysis.state === "fallback"
+                ? "Illustrative demo fixture"
+                : `${snapshot.sampleSize} listings compared`}
             </span>
             <span className="inline-flex min-h-9 items-center rounded-full border border-slate-400/70 bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-900 shadow-sm backdrop-blur-md">
               {dataModeLabel}
@@ -182,7 +202,7 @@ export default async function VehicleIntelligencePage({
 
       <section className="grid gap-5 xl:grid-cols-2" aria-label="Vehicle charts">
         <ValueComparisonChart values={snapshot.values} />
-        <PriceHistoryChart data={snapshot.priceHistory} />
+        <PriceHistoryChart data={snapshot.priceHistory} confidence={asking.confidence} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.82fr_1.18fr]">
