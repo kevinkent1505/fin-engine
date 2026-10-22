@@ -21,6 +21,14 @@ from riil_analysis.ingestion.models import (
 )
 from riil_analysis.ingestion.pipeline import normalize_records
 from riil_analysis.regional import RegionalVehicleStatisticInput
+from riil_analysis.integrations.riil_market import (
+    RIIL_MARKET_SNAPSHOT_URL,
+    fetch_riil_market_snapshot,
+    parse_riil_market_snapshot,
+)
+from riil_analysis.integrations.riil_market_persistence import (
+    persist_riil_market_snapshot,
+)
 from riil_analysis.scrapers.registry import (
     ALL_SOURCE_IDS,
     get_regional_source_adapter,
@@ -273,6 +281,56 @@ def ingest(
     return 0 if observations else 1
 
 
+def import_riil_market(
+    *, input_file: Path | None, persist_db: bool, output_path: Path | None,
+) -> int:
+    """Preview/import Riil's public market artifact; never query private D1."""
+    payload = fetch_riil_market_snapshot(input_file=input_file)
+    snapshot = parse_riil_market_snapshot(payload)
+    preview = {
+        "source": RIIL_MARKET_SNAPSHOT_URL,
+        "acquisition": "local_file" if input_file else "public_read_only_fetch",
+        "riil_updated_at": snapshot.updated_at.isoformat(),
+        "snapshot_sha256": snapshot.snapshot_sha256,
+        "verification": "riil_curated_not_independently_verified",
+        "records": [
+            {
+                "indicator": row.code,
+                "as_of": row.as_of.isoformat(),
+                "value": str(row.value),
+                "unit": row.unit,
+                "original_publisher": row.original_publisher,
+                "original_source_url": row.original_source_url,
+            }
+            for row in snapshot.observations
+        ],
+    }
+
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(preview, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    database_result = (
+        persist_riil_market_snapshot(
+            database_url=get_database_url(),
+            snapshot=snapshot,
+        )
+        if persist_db else None
+    )
+    print(json.dumps({
+        "status": "persisted" if persist_db else "preview_only",
+        "source": preview["source"],
+        "indicators": len(snapshot.observations),
+        "snapshot_sha256": snapshot.snapshot_sha256,
+        "riil_updated_at": snapshot.updated_at.isoformat(),
+        "database": database_result,
+        "output": str(output_path) if output_path else None,
+    }, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fin-engine-data",
@@ -342,6 +400,23 @@ def build_parser() -> argparse.ArgumentParser:
             "Minimum delay between outbound requests. Must be >= 1.0; "
             "default is 2.0 seconds."
         ),
+    )
+
+    riil_market_parser = subparsers.add_parser(
+        "import-riil-market",
+        help="Preview/import the published, non-personal Riil market snapshot.",
+    )
+    riil_market_parser.add_argument(
+        "--input-file", type=Path, default=None,
+        help="Optional local Riil market-snapshot.json instead of public HTTPS fetch.",
+    )
+    riil_market_parser.add_argument(
+        "--output", type=Path, default=None,
+        help="Optional sanitized JSON preview file (contains market figures only).",
+    )
+    riil_market_parser.add_argument(
+        "--persist-db", action="store_true",
+        help="Persist validated indicator revisions (requires Alembic 0003).",
     )
 
     subparsers.add_parser(
@@ -426,6 +501,13 @@ def main() -> int:
             authorization_ref=args.authorization_ref,
             start_url=args.start_url,
             request_delay_seconds=args.request_delay_seconds,
+            persist_db=args.persist_db,
+        )
+
+    if args.command == "import-riil-market":
+        return import_riil_market(
+            input_file=args.input_file,
+            output_path=args.output,
             persist_db=args.persist_db,
         )
 
