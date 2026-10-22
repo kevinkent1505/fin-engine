@@ -279,10 +279,6 @@ async function main() {
         "-m", "riil_analysis.cli", "ingest",
         "--source", "njkb_latest", "--persist-db",
       ]);
-    case "import-riil-market":
-      return pythonCommand([
-        "-m", "riil_analysis.cli", "import-riil-market", ...args,
-      ]);
     case "refresh-bps":
       return pythonCommand([
         "-m", "riil_analysis.cli", "ingest",
@@ -299,7 +295,7 @@ async function main() {
     default:
       console.error(
         "Usage: node scripts/fin-engine.mjs " +
-        "<setup|setup-bps-browser|env-check|dev|api|dashboard|analysis|refresh-official|refresh-njkb|refresh-bps|import-riil-market|ingest|test|migrate>",
+        "<setup|setup-bps-browser|env-check|dev|api|dashboard|analysis|refresh-official|refresh-njkb|refresh-bps|ingest|test|migrate>",
       );
       return 2;
   }
