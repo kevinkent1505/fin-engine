@@ -209,6 +209,8 @@ def parse_riil_market_snapshot(payload: bytes) -> RiilMarketSnapshot:
         if unit != expected_unit and expected_unit is not None:
             raise ValueError(f"{code} unit changed; review adapter before importing.")
         if expected_unit is None:
+            if unit not in (None, "index_points"):
+                raise ValueError(f"{code} unit changed; review adapter before importing.")
             unit = "index_points"
         append(code, obj.get("value"), obj, unit, (lower, upper))
 
