@@ -14,11 +14,18 @@ MIN_PUBLIC_AGGREGATE_COUNT = 20
 
 EVENTS = Literal[
     "page_view", "calculation_completed", "result_shared", "goal_shared",
-    "calculation_saved", "challenge_created", "quiz_finished",
+    "save_opened", "challenge_created", "quiz_finished",
+]
+PAGES = Literal[
+    "home", "vehicle", "mortgage", "card", "paylater", "compare", "payoff",
+    "goal", "debt", "quiz", "about", "method", "privacy", "article", "articles",
+    "buy", "money", "account", "notfound", "other", "rate", "promo", "trend",
+    "buffer", "dampak", "loan", "dampak-kurs", "dampak-bbm",
+    "dampak-inflasi", "dampak-emas", "dampak-ihsg",
 ]
 TOOLS = Literal[
-    "vehicle", "mortgage", "credit_card", "paylater", "compare",
-    "savings", "debt", "promo", "dampak",
+    "brochure", "paylater", "vehicle", "mortgage", "card",
+    "payoff", "compare", "goal", "debt",
 ]
 
 # Input bands are coarse *proposed* values; they are not ready to share until
@@ -40,7 +47,7 @@ class RiilUsageAggregate(BaseModel):
 
     day: date
     event: EVENTS
-    tool: TOOLS
+    page: PAGES
     count: int = Field(ge=MIN_PUBLIC_AGGREGATE_COUNT)
 
     @model_validator(mode="after")
@@ -66,7 +73,7 @@ class RiilUsageAggregateBatch(BaseModel):
 
     @model_validator(mode="after")
     def check_unique(self):
-        keys = [(item.day, item.event, item.tool) for item in self.records]
+        keys = [(item.day, item.event, item.page) for item in self.records]
         if len(keys) != len(set(keys)):
             raise ValueError("Duplicate aggregate cohort in one source batch.")
         return self
