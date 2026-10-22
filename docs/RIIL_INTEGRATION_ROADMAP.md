@@ -1,6 +1,6 @@
 # Riil + Fin Engine: independent products, phased data exchange
 
-**Status:** updated architecture decision and proposed roadmap, 22 October 2026.
+**Status:** approved architecture direction and phased roadmap, 22 October 2026. Phase 1 public-market importer is implemented in Fin Engine but has not been activated on a production schedule.
 **Repositories:** `abagusdp/riil` (reviewed read-only, `main`) and `kevinkent1505/fin-engine` (`feature/marketplace-poc`).
 **Non-negotiable:** both products must remain independently operable, developable, deployable, and testable. They cooperate through adapters and stable data contracts, never through shared application internals.
 
@@ -188,10 +188,23 @@ The first technical data exchange should start with Riil's **already-public mark
 
 ## 9. Integration governance and next implementation tickets
 
-1. **Contract-first:** define a `riil.market_snapshot.v1` JSON Schema, sample fixtures and import validation tests in Fin Engine. Riil's current public artifact is the fixture; do not change Riil yet.
-2. **Read-only Phase 1 importer:** create a source adapter in Fin Engine to ingest approved published Riil market snapshots, preserve original source provenance, and upsert/deduplicate according to stable observation identity. Run a dry-run preview, then persist to a **separate** indicator schema rather than vehicle tables.
+**Phase 1A implementation update:** A Fin Engine-only, read-only import path
+for Riil's published `data/market-snapshot.json` is available via
+`yarn import:riil-market`. The importer has a field allowlist, date/units/
+source attribution validation, separate append-only indicator observations
+(Alembic 0003), and replay-safe revision hashes. It does **not** access D1,
+raw analytics, Riil's private repository, or Fin Engine → Riil endpoints.
+See [Phase 1 importer guide](./RIIL_FEED_PHASE1.md).
+
+**Not yet implemented:** scheduled deployment, a live verified production
+import, original-publisher redistribution approvals, Riil usage-aggregate
+sharing, or the reverse data adapter. Phase 1A should not be interpreted as
+the entire roadmap being complete.
+
+1. **Contract-first (implemented in Fin Engine):** validate the documented Riil snapshot shape and regression fixtures. No Riil changes.
+2. **Read-only Phase 1 importer (implemented, not yet production-run):** preview a Riil snapshot and optionally persist validated, deduplicated revisions to the dedicated indicator table. Verify one real import and reversible migration before scheduling.
 3. **Prove independence:** exercise both projects with the adapter disabled, malformed feed, stale feed, and duplicated feed; add CI checks and an explicit compatibility/error report.
 4. **Privacy/product gate for Phase 1B:** separately document any proposal to aggregate Riil's tracker data, including user disclosures and controls; do not export real behavior data without approval.
 5. **Native data domain, then return path:** add independently sourced BI-Rate and other macro observations to Fin Engine, publish generic versioned APIs, then seek Riil-owner approval for a shadow inbound adapter and optional cutover.
 
-**Change policy:** This document lives only in Fin Engine. Riil (`abagusdp/riil`) remains read-only; any future Riil code change needs separate approval and pull request. This update does not implement or activate transfers and makes no production database changes.
+**Change policy:** This document and the adapter code live only in Fin Engine. Riil (`abagusdp/riil`) remains read-only; any future Riil code change needs separate approval and pull request. No data transfer was activated and no production database migration was executed by this update.
