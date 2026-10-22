@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy import (
     BigInteger,
     Numeric,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -242,7 +243,7 @@ class MarketIndicatorObservation(Base):
         ForeignKey("ingestion_runs.id"), nullable=False
     )
     indicator_code: Mapped[str] = mapped_column(String(100), nullable=False)
-    as_of: Mapped[date] = mapped_column(DateTime(timezone=False), nullable=False)
+    as_of: Mapped[date] = mapped_column(Date(), nullable=False)
     value: Mapped[Decimal] = mapped_column(Numeric(22, 6), nullable=False)
     unit: Mapped[str] = mapped_column(String(80), nullable=False)
     original_publisher: Mapped[str] = mapped_column(String(255), nullable=False)
