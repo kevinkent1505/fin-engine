@@ -9,6 +9,8 @@ const stateClass: Record<AnalysisStatusModel["state"], string> = {
     "border-blue-400 bg-blue-50 text-blue-950",
   fallback:
     "border-amber-500 bg-amber-50 text-amber-950",
+  no_data:
+    "border-slate-400 bg-slate-100 text-slate-950",
 };
 
 const dotClass: Record<AnalysisStatusModel["state"], string> = {
@@ -16,6 +18,7 @@ const dotClass: Record<AnalysisStatusModel["state"], string> = {
   demo: "bg-amber-700",
   development: "bg-blue-700",
   fallback: "bg-amber-700",
+  no_data: "bg-slate-700",
 };
 
 const connectionLabel: Record<AnalysisStatusModel["state"], string> = {
@@ -23,13 +26,15 @@ const connectionLabel: Record<AnalysisStatusModel["state"], string> = {
   demo: "Connected",
   development: "Demo mode",
   fallback: "Fallback mode",
+  no_data: "No estimate",
 };
 
 const sourceLabel: Record<AnalysisStatusModel["state"], string> = {
   database: "Marketplace listings",
   demo: "Synthetic listings",
   development: "Demo comparison data",
-  fallback: "Default demo data",
+  fallback: "Illustrative fixture",
+  no_data: "No comparables",
 };
 
 export function AnalysisStatus({ status }: { status: AnalysisStatusModel }) {
