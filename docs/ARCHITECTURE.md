@@ -4,31 +4,38 @@ Fin Engine is a B2B financial-data and analysis platform. The codebase deliberat
 
 ## Product independence and integration direction
 
-Fin Engine is an independent data-and-intelligence product. It must build, run,
-deploy and serve its own customers without Riil, just as Riil must run without
-Fin Engine. Keep separate repositories, storage, credentials, CI/CD, release
-cadences and service ownership. Integration is via explicit, versioned,
-asynchronous contracts, **not** shared database access, direct imports or
-mandatory live service calls.
+Fin Engine is an independent financial data and analytics product. It must
+build, run, deploy and serve customers without Riil. Riil must run and
+publish calculators/articles without Fin Engine. They keep distinct databases,
+credentials, CI/CD, release calendars and business responsibilities.
 
-**Initial direction: Riil → outbound adapter/feed → Fin Engine importer.**
-A Fin Engine source adapter may consume approved Riil-published public market
-snapshots, preserving original publisher, data dates, licensing and caveats.
-Any aggregate product-usage feed requires a separate privacy/legal/product
-approval gate; raw calculator or account records are not an authorized input.
+**Public and externally obtainable data:** Fin Engine retrieves rates,
+economic statistics, vehicle reference values and other authorized evidence
+**directly from their original provider**, not by reading Riil's curated
+market snapshots. Native provider adapters maintain provenance, licenses,
+quality checks and historical revisions.
 
-**Later, optional reverse direction: Fin Engine published API → Riil inbound
-adapter → existing Riil snapshots/builds.** The Riil-side adapter owns mapping,
-cache, fallback and editorial validation. It may be turned off without breaking
-Riil's calculator engines or publication pipeline.
+**First-party Riil data (optional integration):** Only Riil can originate its
+own usage events, calculator interactions and user-entered scenarios. Riil
+owns any server-side exporter and the privacy/purpose policy; Fin Engine owns
+the inbound validator and its own limited first-party analysis domain. Start
+with safe aggregate event counts. Individual scenario records require
+separate permitted purpose, notice/consent where required, access controls,
+minimization, retention and deletion handling. No raw D1 mirroring, direct
+database access or automatically enabled transfer.
 
-Adapters are small boundary modules/jobs in the respective product repos until
-scale justifies a standalone integration gateway. Fin Engine's Python domain
-analytics remain internally separated from its TypeScript public API; no
-special Riil-facing logic should leak into reusable core domain models.
+**Optional later reverse direction:** Fin Engine's product-neutral API may
+supply independent verified financial context to Riil, but only through a
+Riil-owned inbound adapter that performs validation, mapping, caching and
+editorial checks. Riil's existing calculators and last-known-good data
+continue to operate if Fin Engine is unavailable.
 
-See [Riil + Fin Engine Integration Roadmap](./RIIL_INTEGRATION_ROADMAP.md)
-for phased delivery, contracts, operational guarantees and privacy boundaries.
+Integration adapters are small independently maintained modules, not a
+mandatory shared microservice. Neither product imports the other's
+application code, and the production release of one must never block the
+other's runtime or deployment.
+
+See [the updated Riil integration roadmap](./RIIL_INTEGRATION_ROADMAP.md).
 
 ## System boundary
 
