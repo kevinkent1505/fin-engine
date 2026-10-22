@@ -4,6 +4,7 @@ import { AnalysisStatus } from "@/components/ui/analysis-status";
 import { MetricCard } from "@/components/ui/metric-card";
 import { SourceBadge } from "@/components/ui/source-badge";
 import { VehicleChooser } from "@/components/ui/vehicle-chooser";
+import { ValuationUnavailable } from "@/components/ui/valuation-unavailable";
 import { RegionalMarketChart } from "@/features/market-intelligence/regional-market-chart";
 import { ValueComparisonChart } from "@/features/vehicle-intelligence/value-comparison-chart";
 import {
@@ -45,6 +46,23 @@ export default async function OverviewPage({
   );
   const data = await getDashboardData(selected);
   const snapshot = data.snapshot;
+
+  if (data.analysis.state === "no_data") {
+    return (
+      <div className="space-y-6 sm:space-y-7">
+        <section>
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-900">Overview</div>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+            Explore vehicle valuations and their supporting evidence.
+          </h1>
+        </section>
+        <VehicleChooser catalog={catalog} selected={selected} />
+        <AnalysisStatus status={data.analysis} />
+        <ValuationUnavailable vehicle={selected} />
+        <RegionalMarketChart data={data.regionalMarket} />
+      </div>
+    );
+  }
 
   const asking = snapshot.values.find((item) => item.kind === "listing")!;
   const njkb = snapshot.values.find((item) => item.kind === "njkb");
@@ -160,14 +178,18 @@ export default async function OverviewPage({
 
           <dl className="mt-5 grid grid-cols-1 gap-5 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-600">Typical listing range</dt>
+              <dt className="text-slate-600">
+                {data.analysis.state === "fallback" ? "Illustrative demo range" : "Typical listing range"}
+              </dt>
               <dd className="mt-1 font-semibold text-slate-950">
                 {formatRupiahCompact(snapshot.observedRange[0])}–{formatRupiahCompact(snapshot.observedRange[1])}
               </dd>
             </div>
             <div>
               <dt className="text-slate-600">Listings compared</dt>
-              <dd className="mt-1 font-semibold text-slate-950">{snapshot.sampleSize}</dd>
+              <dd className="mt-1 font-semibold text-slate-950">
+                {data.analysis.state === "fallback" ? "No observed listings (demo only)" : snapshot.sampleSize}
+              </dd>
             </div>
             <div>
               <dt className="text-slate-600">Official reference</dt>
