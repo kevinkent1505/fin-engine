@@ -1,3 +1,5 @@
+> **Automatic public-source refresh (implemented):** `yarn refresh:data` checks successful Neon ingestion timestamps and refreshes only due government/public sources (NJKB 90 days, BPS 30 days, DJP 7 days). The analysis API also performs non-blocking startup / periodic checks when `DATABASE_URL` is set and `FIN_ENGINE_AUTO_REFRESH` is not disabled. The new `.github/workflows/refresh-public-data.yml` can run weekly when repository secret `FIN_ENGINE_DATABASE_URL` is configured. The repository contains the workflow, but actual scheduled execution and cloud deployment have **not been verified**. The permission-gated marketplace crawlers still use separate explicitly authorized jobs. If the API runs on autoscaling/serverless instances, prefer the scheduled job as the reliable clock; the in-process loop only runs while the Python analysis service is alive.
+
 # Deployment
 
 Fin Engine is designed to run ingestion as short-lived batch jobs and the public API as a separate long-running service.

@@ -22,6 +22,7 @@
     "refresh:njkb": "node scripts/fin-engine.mjs refresh-njkb",
     "refresh:bps": "node scripts/fin-engine.mjs refresh-bps",
     "refresh:official": "node scripts/fin-engine.mjs refresh-official",
+    "refresh:data": "node scripts/fin-engine.mjs refresh-data",
     "test:tooling": "node --check scripts/fin-engine.mjs && node --test scripts/tests/env-local.test.mjs",
     "setup:bps-browser": "node scripts/fin-engine.mjs setup-bps-browser",
     "env:check": "node scripts/fin-engine.mjs env-check"

@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager, suppress
+import logging
 import os
 
 from fastapi import FastAPI, HTTPException
@@ -15,6 +18,7 @@ from .regional import (
     RegionalMarketResponse,
     latest_regional_market_from_database,
 )
+from .refresh import refresh_public_data
 from .valuation import (
     database_listing_catalog_source,
     estimate_vehicle_value,
@@ -23,7 +27,55 @@ from .valuation import (
     list_available_vehicles_from_database,
 )
 
-app = FastAPI(title="Fin Engine Analysis", version="0.1.0")
+logger = logging.getLogger(__name__)
+
+
+def _auto_refresh_enabled() -> bool:
+    return bool(os.getenv("DATABASE_URL")) and os.getenv(
+        "FIN_ENGINE_AUTO_REFRESH", "true"
+    ).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _refresh_check_seconds() -> float:
+    try:
+        hours = float(os.getenv("FIN_ENGINE_REFRESH_CHECK_HOURS", "12"))
+        return max(1.0, hours) * 3600
+    except ValueError:
+        logger.warning("Invalid FIN_ENGINE_REFRESH_CHECK_HOURS; using 12 hours.")
+        return 12 * 3600
+
+
+async def _refresh_due_public_data() -> None:
+    """Never run external fetches or ingestion on an API request thread."""
+    while True:
+        try:
+            database_url = os.getenv("DATABASE_URL")
+            if database_url:
+                outcome = await asyncio.to_thread(refresh_public_data, database_url)
+                logger.info("Automatic public-data refresh: %s", outcome)
+        except Exception:
+            logger.exception("Automatic public-data refresh failed; API stays online.")
+        await asyncio.sleep(_refresh_check_seconds())
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Start a best-effort freshness check without blocking API startup."""
+    task = (
+        asyncio.create_task(_refresh_due_public_data())
+        if _auto_refresh_enabled()
+        else None
+    )
+    try:
+        yield
+    finally:
+        if task is not None:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
+
+app = FastAPI(title="Fin Engine Analysis", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")
