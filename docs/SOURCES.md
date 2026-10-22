@@ -477,7 +477,16 @@ Application code should not hard-code annual source IDs such as
 `njkb_latest` and `vehicle_stock_latest`, or call
 `latest_official_source(...)` from Python.
 
-The standard refresh command is:
+For freshness-aware updating of **all** configured public government sources, use:
+
+```bash
+yarn refresh:data          # only stale NJKB, BPS or DJP public data
+yarn refresh:data --force  # re-fetch all of them
+```
+
+The analysis API runs due checks on startup and periodically while alive. GitHub Actions can also run the same command weekly using a Neon database secret. Neither mode ever starts restricted marketplace crawlers.
+
+The legacy explicit full official-source refresh command is:
 
 ```bash
 yarn refresh:official
