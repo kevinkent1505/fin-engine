@@ -119,8 +119,10 @@ export function VehicleChooser({
     setRegion(next.region);
   }
 
-  const sourceLabel =
-    catalog.source === "database"
+  const official = catalog.source === "official";
+  const sourceLabel = official
+    ? "Official NJKB choices"
+    : catalog.source === "database"
       ? "Marketplace choices"
       : catalog.source === "database_demo"
         ? "Demo marketplace choices"
@@ -147,7 +149,9 @@ export function VehicleChooser({
             Choose the vehicle you want to explore
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-700">
-            Pick a brand, model, year and location. Then press <strong>Show this vehicle</strong>. The dashboard will update the numbers and charts for that selection.
+            {official
+              ? "Pick a brand, model and year from the official NJKB records currently stored in Fin Engine."
+              : "Pick a brand, model, year and location. Then press Show this vehicle to update the dashboard."}
           </p>
         </div>
         <span className="inline-flex min-h-8 w-fit items-center rounded-full border border-slate-400 bg-white px-3 py-1 text-xs font-black text-slate-950">
@@ -208,8 +212,10 @@ export function VehicleChooser({
         </label>
 
         <label className="block">
-          <span className="text-sm font-bold text-slate-950">Location</span>
-          <span className="mt-0.5 block text-xs text-slate-600">Where listings are compared</span>
+          <span className="text-sm font-bold text-slate-950">Coverage</span>
+          <span className="mt-0.5 block text-xs text-slate-600">
+            {official ? "Official reference scope" : "Where listings are compared"}
+          </span>
           <select
             name="region"
             value={region}

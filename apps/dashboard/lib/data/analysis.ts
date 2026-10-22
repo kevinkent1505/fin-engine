@@ -18,7 +18,12 @@ type AnalysisValuationResponse = {
 
 type AnalysisVehicleCatalogResponse = {
   vehicles: VehicleOption[];
-  source: "database" | "database_demo" | "database_mixed" | "development";
+  source:
+    | "official"
+    | "database"
+    | "database_demo"
+    | "database_mixed"
+    | "development";
 };
 
 type AnalysisRegionalMarketResponse = {
@@ -30,6 +35,27 @@ type AnalysisRegionalMarketResponse = {
     region: string;
     passenger_cars: number;
   }>;
+};
+
+type AnalysisReferenceBand = {
+  status: "exact" | "range" | "unavailable";
+  value: number | null;
+  low: number | null;
+  high: number | null;
+  candidate_count: number;
+  variants: string[];
+  source_keys: string[];
+  source_urls: string[];
+};
+
+type AnalysisVehicleReferenceResponse = {
+  vehicle: {
+    make: string;
+    model: string;
+    year: number;
+  };
+  njkb: AnalysisReferenceBand;
+  auction_limit: AnalysisReferenceBand;
 };
 
 export type AnalysisValuationResult =
@@ -62,12 +88,24 @@ export type AnalysisRegionalMarketResult =
       detail: string;
     };
 
+export type AnalysisVehicleReferenceResult =
+  | {
+      status: "ok";
+      data: AnalysisVehicleReferenceResponse;
+    }
+  | {
+      status: "unavailable";
+      detail: string;
+    };
+
 const analysisBaseUrl =
   process.env.ANALYSIS_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8001";
 
-export async function requestAnalysisVehicleOptions(): Promise<AnalysisVehicleCatalogResult> {
+async function requestVehicleOptions(
+  path: string,
+): Promise<AnalysisVehicleCatalogResult> {
   try {
-    const response = await fetch(`${analysisBaseUrl}/internal/v1/vehicles/options`, {
+    const response = await fetch(`${analysisBaseUrl}${path}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(4_000),
     });
@@ -96,6 +134,14 @@ export async function requestAnalysisVehicleOptions(): Promise<AnalysisVehicleCa
   }
 }
 
+export async function requestOfficialVehicleOptions(): Promise<AnalysisVehicleCatalogResult> {
+  return requestVehicleOptions("/internal/v1/official/vehicles/options");
+}
+
+export async function requestAnalysisVehicleOptions(): Promise<AnalysisVehicleCatalogResult> {
+  return requestVehicleOptions("/internal/v1/vehicles/options");
+}
+
 export async function requestAnalysisRegionalMarket(): Promise<AnalysisRegionalMarketResult> {
   try {
     const response = await fetch(`${analysisBaseUrl}/internal/v1/regional-market`, {
@@ -119,6 +165,49 @@ export async function requestAnalysisRegionalMarket(): Promise<AnalysisRegionalM
       error instanceof Error
         ? `Regional market data could not be loaded from the analysis engine: ${error.message}`
         : "Regional market data could not be loaded from the analysis engine.";
+
+    return {
+      status: "unavailable",
+      detail,
+    };
+  }
+}
+
+export async function requestAnalysisReferences(input: {
+  make: string;
+  model: string;
+  year: number;
+}): Promise<AnalysisVehicleReferenceResult> {
+  try {
+    const response = await fetch(
+      `${analysisBaseUrl}/internal/v1/vehicles/references`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(input),
+        cache: "no-store",
+        signal: AbortSignal.timeout(4_000),
+      },
+    );
+
+    if (!response.ok) {
+      return {
+        status: "unavailable",
+        detail: `The analysis engine returned HTTP ${response.status} while loading vehicle references.`,
+      };
+    }
+
+    return {
+      status: "ok",
+      data: (await response.json()) as AnalysisVehicleReferenceResponse,
+    };
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? `Vehicle references could not be loaded from the analysis engine: ${error.message}`
+        : "Vehicle references could not be loaded from the analysis engine.";
 
     return {
       status: "unavailable",

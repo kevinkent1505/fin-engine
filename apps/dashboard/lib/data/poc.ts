@@ -48,8 +48,32 @@ export const pocDashboardData: DashboardData = {
         confidence: "illustrative",
       },
     ],
-    // One illustrative snapshot only: never manufacture a historical trend.
+    // One illustrative snapshot only; no fabricated historical observations.
     priceHistory: [{ date: "POC", value: 232_000_000 }],
+  },
+  references: {
+    njkb: {
+      status: "exact",
+      value: 214_000_000,
+      low: 214_000_000,
+      high: 214_000_000,
+      candidateCount: 1,
+      variants: ["1.5 Veloz M/T"],
+      sourceKeys: ["kemendagri_njkb_2025"],
+      sourceUrls: [
+        "https://peraturan.bpk.go.id/Details/321612/permendagri-no-7-tahun-2025",
+      ],
+    },
+    auctionLimit: {
+      status: "exact",
+      value: 188_000_000,
+      low: 188_000_000,
+      high: 188_000_000,
+      candidateCount: 1,
+      variants: ["POC fixture"],
+      sourceKeys: ["auction_poc"],
+      sourceUrls: [],
+    },
   },
   regionalMarket: [
     { region: "Jawa Timur", passengerCars: 5_439_502 },

@@ -4,11 +4,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from .config import latest_official_source
 from .database.config import normalize_database_url
 from .database.models import IngestionRun, RegionalVehicleStatistic
 
 
-BPS_VEHICLE_STOCK_SOURCE = "bps_vehicle_stock_2025"
+BPS_VEHICLE_STOCK_SOURCE = latest_official_source(
+    "regional_vehicle_stock"
+).source_id
 
 
 class RegionalVehicleStatisticInput(BaseModel):
@@ -70,7 +73,10 @@ def latest_regional_market_from_database(
                 select(RegionalVehicleStatistic)
                 .where(
                     RegionalVehicleStatistic.ingestion_run_id == latest_run.id,
-                    RegionalVehicleStatistic.region != "Indonesia",
+                    RegionalVehicleStatistic.region
+                    != latest_official_source(
+                        "regional_vehicle_stock"
+                    ).default_region,
                 )
                 .order_by(RegionalVehicleStatistic.passenger_cars.desc())
                 .limit(limit)

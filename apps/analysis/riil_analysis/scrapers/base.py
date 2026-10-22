@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from riil_analysis.config import (
+    DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS,
+    MIN_MARKETPLACE_REQUEST_DELAY_SECONDS,
+)
 from riil_analysis.ingestion.models import RawVehicleObservation
 
 
@@ -13,7 +17,9 @@ class VehicleSourceAdapter(ABC):
         self.input_path: Path | None = None
         self.authorization_reference: str | None = None
         self.start_url: str | None = None
-        self.request_delay_seconds: float = 2.0
+        self.request_delay_seconds: float = (
+            DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS
+        )
 
     def set_fetch_limit(self, limit: int | None) -> None:
         """Allow multi-request adapters to cap network work during development."""
@@ -33,9 +39,11 @@ class VehicleSourceAdapter(ABC):
 
     def set_request_delay_seconds(self, seconds: float) -> None:
         """Configure a self-imposed delay between outbound requests."""
-        if seconds < 1.0:
+        if seconds < MIN_MARKETPLACE_REQUEST_DELAY_SECONDS:
             raise ValueError(
-                "request delay must be at least 1.0 second for marketplace crawls"
+                "request delay must be at least "
+                f"{MIN_MARKETPLACE_REQUEST_DELAY_SECONDS:.1f} second(s) "
+                "for marketplace crawls"
             )
         self.request_delay_seconds = seconds
 

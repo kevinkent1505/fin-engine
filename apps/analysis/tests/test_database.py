@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from riil_analysis.database.models import (
     VehicleRecord,
 )
 from riil_analysis.database.persistence import persist_ingestion
+from riil_analysis.database.timestamps import as_utc
 from riil_analysis.ingestion.models import (
     CanonicalVehicleObservation,
     IngestionAudit,
@@ -127,5 +128,69 @@ def test_persistence_keeps_identity_and_appends_observations(tmp_path) -> None:
             )
         ).all()
         assert prices == [218_000_000, 214_000_000]
+
+    engine.dispose()
+
+
+def test_database_naive_timestamps_are_interpreted_as_utc() -> None:
+    raw_from_sqlite = datetime(2026, 10, 2, 1, 0)
+    same_in_utc_plus_eight = datetime(
+        2026, 10, 2, 9, 0, tzinfo=timezone(timedelta(hours=8))
+    )
+
+    assert as_utc(raw_from_sqlite) == datetime(2026, 10, 2, 1, 0, tzinfo=UTC)
+    assert as_utc(same_in_utc_plus_eight) == as_utc(raw_from_sqlite)
+
+
+def test_sqlite_persistence_normalizes_timezones_and_older_observations(
+    tmp_path,
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'timestamps.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    engine.dispose()
+
+    first_time = datetime(
+        2026, 10, 2, 9, 0, tzinfo=timezone(timedelta(hours=8))
+    )
+    older_time = datetime(2026, 10, 1, 23, 30, tzinfo=UTC)
+
+    for price, observed_at in [
+        (218_000_000, first_time),
+        (214_000_000, older_time),
+    ]:
+        persist_ingestion(
+            database_url=database_url,
+            source_key="olx_authorized_crawl",
+            source_url="https://www.olx.co.id/",
+            observations=[observation(price=price, observed_at=observed_at)],
+            report=quality(),
+            audit=IngestionAudit(),
+            started_at=observed_at,
+            authorization_reference="permission-001",
+            requested_limit=5,
+            request_delay_seconds=2.0,
+        )
+
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        record = session.scalar(select(VehicleRecord))
+        assert record is not None
+        # SQLite strips tzinfo. We store UTC wall time explicitly.
+        assert record.first_seen_at == datetime(2026, 10, 2, 1, 0)
+        assert record.last_seen_at == datetime(2026, 10, 2, 1, 0)
+
+        timestamps = session.scalars(
+            select(VehicleObservation.observed_at).order_by(
+                VehicleObservation.observed_at
+            )
+        ).all()
+        assert timestamps == [
+            datetime(2026, 10, 1, 23, 30),
+            datetime(2026, 10, 2, 1, 0),
+        ]
+        assert session.scalar(
+            select(func.count()).select_from(VehicleObservation)
+        ) == 2
 
     engine.dispose()

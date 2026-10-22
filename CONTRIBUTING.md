@@ -41,8 +41,8 @@ Avoid mixing a large parser rewrite, database migration and unrelated API redesi
 
 ```bash
 cd apps/analysis
-uv sync --extra dev
-uv run pytest -v
+yarn setup
+yarn test:analysis -v
 ```
 
 Keep Python 3.12 compatibility because production containers currently use Python 3.12.

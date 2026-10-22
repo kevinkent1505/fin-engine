@@ -308,7 +308,7 @@ riil_analysis/scrapers/registry.py
 This makes it available to:
 
 ```bash
-uv run fin-engine-data ingest --source ...
+yarn ingest --source ...
 ```
 
 ### 4. Add normalization only when shared/canonical
@@ -386,7 +386,7 @@ data/sample/authorized-marketplace-feed-template.csv
 ### NJKB
 
 ```bash
-uv run fin-engine-data ingest \
+yarn ingest \
   --source kemendagri_njkb_2025 \
   --persist-db
 ```
@@ -394,7 +394,7 @@ uv run fin-engine-data ingest \
 ### Authorized marketplace crawl
 
 ```bash
-uv run fin-engine-data ingest \
+yarn ingest \
   --source olx_authorized_crawl \
   --authorization-ref "permission-reference" \
   --request-delay-seconds 2 \
@@ -405,7 +405,7 @@ uv run fin-engine-data ingest \
 ### CSV plus DB
 
 ```bash
-uv run fin-engine-data ingest \
+yarn ingest \
   --source mobil123_authorized_crawl \
   --authorization-ref "permission-reference" \
   --limit 5 \

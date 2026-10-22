@@ -1,6 +1,13 @@
 from datetime import UTC, datetime
+import csv
+import io
+
+from bs4 import BeautifulSoup
 
 from sqlalchemy import create_engine
+import pytest
+
+from riil_analysis.cli import ingest
 
 from riil_analysis.database.models import Base
 from riil_analysis.database.persistence import persist_regional_vehicle_statistics
@@ -83,3 +90,226 @@ def test_latest_regional_market_uses_latest_persisted_bps_snapshot(tmp_path) -> 
     assert market.regions[0].region == "Jawa Timur"
     assert market.regions[0].passenger_cars == 5_588_804
     assert all(point.region != "Indonesia" for point in market.regions)
+
+
+def test_bps_parser_rejects_non_numeric_missing_values() -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    for missing_value in ("–", "...", "NA", "^1", "Data tidak tersedia"):
+        with pytest.raises(ValueError, match="Invalid BPS vehicle count"):
+            adapter._parse_count(missing_value)
+
+    assert adapter._parse_count("223.567 *") == 223_567
+    assert adapter._parse_count("2,590,309*") == 2_590_309
+    assert adapter._parse_count("995") == 995
+
+
+def test_bps_official_html_file_ingestion_without_database(tmp_path) -> None:
+    html_file = tmp_path / "bps-2025.html"
+    html_file.write_bytes(_table_html())
+    output_file = tmp_path / "bps-preview.csv"
+
+    result = ingest(
+        source_id="vehicle_stock_latest",
+        output_path=output_file,
+        limit=None,
+        input_file=html_file,
+        authorization_ref=None,
+        start_url=None,
+        request_delay_seconds=2.0,
+        persist_db=False,
+    )
+
+    assert result == 0
+    content = output_file.read_text(encoding="utf-8")
+    assert "DKI Jakarta" in content
+    assert "bps_vehicle_stock_2025" in content
+    assert "2336960" in content
+    assert "manual_official_html_snapshot" in content
+
+
+def test_bps_file_import_rejects_unsupported_formats(tmp_path) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    source = tmp_path / "bps-2025.json"
+    source.write_text('{"region":"Aceh"}', encoding="utf-8")
+    adapter.set_input_path(source)
+
+    with pytest.raises(ValueError, match="accepts a saved official BPS HTML page"):
+        adapter.fetch()
+
+
+def _table_csv() -> bytes:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["BPS Jumlah Kendaraan Bermotor Menurut Provinsi 2025"])
+    writer.writerow([
+        "No", "Provinsi", "Mobil Penumpang", "Bus",
+        "Truk", "Sepeda Motor", "Jumlah Kendaraan Bermotor",
+    ])
+    soup = BeautifulSoup(_table_html(), "html.parser")
+    for row in soup.find_all("tr"):
+        writer.writerow([
+            cell.get_text(" ", strip=True) for cell in row.find_all("td")
+        ])
+    return output.getvalue().encode("utf-8-sig")
+
+
+def test_bps_official_csv_export_ingestion_and_provenance(tmp_path) -> None:
+    source = tmp_path / "bps-2025.csv"
+    source.write_bytes(_table_csv())
+    adapter = BpsVehicleStock2025Adapter()
+    adapter.set_input_path(source)
+    records = adapter.run()
+
+    jakarta = next(row for row in records if row.region == "DKI Jakarta")
+    assert jakarta.passenger_cars == 2_336_960
+    assert jakarta.total == 12_279_058
+    assert jakarta.year == 2025
+    assert jakarta.metadata["acquisition"] == "manual_official_csv_export"
+    assert jakarta.metadata["import_filename"] == "bps-2025.csv"
+    assert len(jakarta.metadata["import_sha256"]) == 64
+
+    preview = tmp_path / "bps-preview.csv"
+    assert ingest(
+        source_id="vehicle_stock_latest",
+        output_path=preview,
+        limit=None,
+        input_file=source,
+        authorization_ref=None,
+        start_url=None,
+        request_delay_seconds=2.0,
+        persist_db=False,
+    ) == 0
+    assert "DKI Jakarta" in preview.read_text(encoding="utf-8")
+
+
+def test_bps_csv_rejects_incorrect_publication_year(tmp_path) -> None:
+    source = tmp_path / "bps-2024.csv"
+    source.write_bytes(_table_csv().replace(b"2025", b"2024"))
+    adapter = BpsVehicleStock2025Adapter()
+    adapter.set_input_path(source)
+    with pytest.raises(ValueError, match="configured source year 2025"):
+        adapter.run()
+
+
+def test_bps_csv_rejects_mislabeled_table(tmp_path) -> None:
+    source = tmp_path / "other-2025.csv"
+    source.write_bytes(
+        _table_csv().replace(b"Jumlah Kendaraan Bermotor", b"Other Indicators")
+        .replace(b"Provinsi", b"Other Region")
+    )
+    adapter = BpsVehicleStock2025Adapter()
+    adapter.set_input_path(source)
+    with pytest.raises(ValueError, match="missing province and motor-vehicle"):
+        adapter.run()
+
+
+def test_bps_parser_excludes_rows_with_nonreconciling_totals() -> None:
+    payload = _table_html().replace(
+        b"<td>2.898.834</td>",
+        b"<td>2.898.835</td>",
+    )
+    records = BpsVehicleStock2025Adapter().parse(payload)
+    assert all(record.region != "Aceh" for record in records)
+    assert len(records) == 11
+
+
+def _complete_live_html() -> bytes:
+    """Test fixture with all required regions and enough rows for a full page."""
+    soup = BeautifulSoup(_table_html(), "html.parser")
+    table = soup.find("table")
+    assert table is not None
+    original = table.find_all("tr")[0]
+    for number in range(25):
+        new_row = BeautifulSoup(str(original), "html.parser").find("tr")
+        assert new_row is not None
+        cells = new_row.find_all("td")
+        cells[0].string = str(number + 100)
+        cells[1].string = f"Test Province {number:02d}"
+        table.append(new_row)
+    heading = soup.new_tag("h1")
+    heading.string = "Jumlah Kendaraan Bermotor Menurut Provinsi 2025"
+    soup.body.insert(0, heading)
+    return str(soup).encode("utf-8")
+
+
+def test_bps_auto_refresh_uses_rendered_browser_after_incomplete_http(
+    monkeypatch,
+) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    monkeypatch.setattr(
+        adapter, "fetch",
+        lambda: b"<html><body><h1>BPS vehicle stock 2025</h1></body></html>",
+    )
+
+    def rendered():
+        adapter._used_browser = True
+        return _complete_live_html()
+
+    monkeypatch.setattr(adapter, "fetch_rendered", rendered)
+
+    records = adapter.run()
+    assert len(records) >= 25
+    assert any(item.region == "Jawa Timur" for item in records)
+    assert all(
+        item.metadata["acquisition"] == "public_statistics_table_browser"
+        for item in records
+    )
+
+
+def test_bps_complete_http_response_does_not_open_browser(monkeypatch) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    monkeypatch.setattr(adapter, "fetch", _complete_live_html)
+
+    def unexpected_browser():
+        raise AssertionError("Complete HTTP results must not open a browser")
+
+    monkeypatch.setattr(adapter, "fetch_rendered", unexpected_browser)
+    records = adapter.run()
+    assert len(records) >= 25
+    assert all(
+        item.metadata["acquisition"] == "public_statistics_table"
+        for item in records
+    )
+
+
+def test_bps_refresh_rejects_incomplete_http_and_browser_snapshots(
+    monkeypatch,
+) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    monkeypatch.setattr(
+        adapter,
+        "fetch",
+        lambda: b"<html><body><h1>2025</h1></body></html>",
+    )
+    monkeypatch.setattr(adapter, "fetch_rendered", _table_html)
+
+    with pytest.raises(RuntimeError, match="No incomplete data were saved"):
+        adapter.run()
+
+
+def test_bps_file_import_never_attempts_browser_fallback(
+    monkeypatch, tmp_path
+) -> None:
+    adapter = BpsVehicleStock2025Adapter()
+    html_file = tmp_path / "official.html"
+    html_file.write_bytes(_table_html())
+    adapter.set_input_path(html_file)
+    monkeypatch.setattr(
+        adapter,
+        "fetch_rendered",
+        lambda: (_ for _ in ()).throw(AssertionError("Browser should not run")),
+    )
+    assert len(adapter.run()) == 12
+
+
+def test_bps_rejects_live_table_with_incorrect_publication_year(
+    monkeypatch,
+) -> None:
+    payload = _complete_live_html().replace(
+        b"Provinsi 2025", b"Provinsi 2024"
+    )
+    adapter = BpsVehicleStock2025Adapter()
+    monkeypatch.setattr(adapter, "fetch", lambda: payload)
+    monkeypatch.setattr(adapter, "fetch_rendered", lambda: payload)
+    with pytest.raises(RuntimeError, match="heading does not identify year"):
+        adapter.run()

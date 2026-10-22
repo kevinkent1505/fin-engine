@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from riil_analysis.database.config import normalize_database_url
+from riil_analysis.database.timestamps import as_utc
 from riil_analysis.database.models import (
     DataSource,
     IngestionRun,
@@ -39,6 +40,7 @@ def persist_ingestion(
     )
 
     run_id = str(uuid.uuid4())
+    started_at = as_utc(started_at)
     completed_at = datetime.now(UTC)
     inserted_observations = 0
     created_records = 0
@@ -75,6 +77,8 @@ def persist_ingestion(
         session.flush()
 
         for observation in observations:
+            # Store UTC even for source observations supplied in another zone.
+            observed_at = as_utc(observation.observed_at)
             existing = session.scalar(
                 select(VehicleRecord).where(
                     VehicleRecord.source_key == source_key,
@@ -96,8 +100,8 @@ def persist_ingestion(
                     year=observation.year,
                     region=observation.region,
                     category=observation.category,
-                    first_seen_at=observation.observed_at,
-                    last_seen_at=observation.observed_at,
+                    first_seen_at=observed_at,
+                    last_seen_at=observed_at,
                     latest_metadata=observation.metadata,
                 )
                 session.add(vehicle_record)
@@ -113,9 +117,11 @@ def persist_ingestion(
                 vehicle_record.year = observation.year
                 vehicle_record.region = observation.region
                 vehicle_record.category = observation.category
+                # SQLite returns naive datetime values even for timezone=True;
+                # the application persists UTC, so normalize both operands.
                 vehicle_record.last_seen_at = max(
-                    vehicle_record.last_seen_at,
-                    observation.observed_at,
+                    as_utc(vehicle_record.last_seen_at),
+                    observed_at,
                 )
                 vehicle_record.latest_metadata = observation.metadata
                 updated_records += 1
@@ -125,7 +131,7 @@ def persist_ingestion(
                     id=str(uuid.uuid4()),
                     vehicle_record_id=vehicle_record.id,
                     ingestion_run_id=run_id,
-                    observed_at=observation.observed_at,
+                    observed_at=observed_at,
                     price=observation.price,
                     price_kind=observation.price_kind,
                     currency=observation.currency,
@@ -167,6 +173,7 @@ def persist_regional_vehicle_statistics(
         pool_pre_ping=True,
     )
     run_id = str(uuid.uuid4())
+    started_at = as_utc(started_at)
     completed_at = datetime.now(UTC)
 
     with Session(engine) as session:
@@ -215,7 +222,7 @@ def persist_regional_vehicle_statistics(
                     source_key=source_key,
                     ingestion_run_id=run_id,
                     source_url=observation.source_url,
-                    observed_at=observation.observed_at,
+                    observed_at=as_utc(observation.observed_at),
                     year=observation.year,
                     region=observation.region,
                     passenger_cars=observation.passenger_cars,

@@ -1,10 +1,14 @@
 # Fin Engine
 
-B2B financial data and analysis platform for Riil.
+Independent financial data and intelligence platform. Riil is an initial potential data partner and future optional consumer, not a runtime dependency.
 
 Fin Engine turns vehicle-market and official reference data into traceable analytical signals for future collateral intelligence, valuation and underwriting-support products.
 
 For a non-technical explanation of the product, target customers, use cases, data signals, limitations, commercial options and roadmap, see the [Business Overview](./docs/BUSINESS.md).
+
+For the cross-repository plan with Riil, see [Riil + Fin Engine Integration Roadmap](./docs/RIIL_INTEGRATION_ROADMAP.md). **Both products remain independently operable, developable and deployable.** Fin Engine obtains publicly available financial data **directly from original authorized sources**. Riil may later export **approved first-party usage and scenario signals** through a dedicated purpose-limited adapter, never by mirroring its private D1 database. In later phases Fin Engine may provide source-backed intelligence back to Riil through a separate adapter.
+
+**No first-party Riil export has been activated.** The previously proposed Riil-public-market importer was retired because it duplicated data available from original providers. The generic market indicator migration remains for independently sourced datasets.
 
 ## Current status
 
@@ -37,7 +41,7 @@ Cloud Run Jobs
 → populate observed marketplace history in Neon
 ```
 
-Cloud Run Job infrastructure is **not yet committed/deployed**; see [Deployment](./docs/DEPLOYMENT.md).
+Cloud Run Job infrastructure is partially committed but deployment is not verified; see [Deployment](./docs/DEPLOYMENT.md).
 
 ## Architecture
 
@@ -119,27 +123,37 @@ fin-engine/
 
 ## Quick start
 
-Install dependencies:
+Run the commands below from the repository root. For platform-independent local development, use the Yarn wrapper; Docker continues to install Python with pip directly.
+
+Install dependencies and configure your local connection:
 
 ```bash
 yarn
-
-cd apps/analysis
-uv sync --extra dev
-cd ../..
+yarn setup
+cp .env.local.example .env.local
 ```
 
-Python 3.12 is recommended.
+Edit the root `.env.local` file and set your real Neon `DATABASE_URL`.
+Then verify the connection setting without revealing its value:
+
+```bash
+yarn env:check
+yarn dev
+```
+
+The launcher automatically reads this Git-ignored file for all Python
+ingestion, API, dashboard, and migration commands. Environment variables
+already configured in the terminal take precedence over `.env.local`.
+Python 3.12+, Node.js 20+, and Yarn 1 are required; no `uv` or Windows
+`py` launcher is necessary.
 
 ### Run Python analysis service
 
 ```bash
-cd apps/analysis
-export VEHICLE_DATA_PATH="../../data/sample/vehicles.csv"
-uv run uvicorn riil_analysis.main:app --reload --host 0.0.0.0 --port 8001
+yarn dev:analysis
 ```
 
-To use observed marketplace data instead, export a Neon `DATABASE_URL` in the same shell before starting the service.
+For Neon-backed official datasets, set `DATABASE_URL` in the root `.env.local`. The launcher passes it to the service automatically.
 
 ### Run the business dashboard
 
@@ -185,18 +199,14 @@ curl "http://localhost:8000/v1/vehicles/valuation?make=Toyota&model=Avanza&year=
 Fin Engine uses PostgreSQL for durable ingestion history. Neon is the initial hosted provider.
 
 ```bash
-export DATABASE_URL='postgresql://USER:PASSWORD@...-pooler....neon.tech/neondb?sslmode=require'
-
-cd apps/analysis
-uv run alembic upgrade head
+# Configure DATABASE_URL in .env.local once, then:
+yarn migrate upgrade head
 ```
 
 Persist an ingestion run:
 
 ```bash
-uv run fin-engine-data ingest \
-  --source kemendagri_njkb_2025 \
-  --persist-db
+yarn ingest --source njkb_latest --persist-db
 ```
 
 See [Database and Persistence](./docs/DATABASE.md).
@@ -223,8 +233,7 @@ Authorized marketplace crawlers are sequential and rate-limited. They require an
 Example:
 
 ```bash
-cd apps/analysis
-uv run fin-engine-data ingest \
+yarn ingest \
   --source mobil123_authorized_crawl \
   --authorization-ref "permission-reference" \
   --request-delay-seconds 2 \
@@ -240,8 +249,7 @@ See [Ingestion](./docs/INGESTION.md) and [Source Registry](./docs/SOURCES.md).
 Python:
 
 ```bash
-cd apps/analysis
-uv run pytest -v
+yarn test:analysis -v
 ```
 
 TypeScript API:

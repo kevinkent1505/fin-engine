@@ -5,6 +5,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+from riil_analysis.config import (
+    DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS,
+    official_refresh_source_ids,
+)
 from riil_analysis.database.config import get_database_url
 from riil_analysis.database.persistence import (
     persist_ingestion,
@@ -19,9 +23,9 @@ from riil_analysis.ingestion.pipeline import normalize_records
 from riil_analysis.regional import RegionalVehicleStatisticInput
 from riil_analysis.scrapers.registry import (
     ALL_SOURCE_IDS,
-    REGIONAL_SOURCE_FACTORIES,
     get_regional_source_adapter,
     get_source_adapter,
+    is_regional_source,
 )
 
 
@@ -142,9 +146,11 @@ def ingest_regional(
     output_path: Path | None,
     limit: int | None,
     persist_db: bool,
+    input_file: Path | None = None,
 ) -> int:
     started_at = datetime.now(UTC)
     adapter = get_regional_source_adapter(source_id)
+    adapter.set_input_path(input_file)
     observations = adapter.run()
     if limit is not None:
         observations = observations[:limit]
@@ -196,12 +202,13 @@ def ingest(
     request_delay_seconds: float,
     persist_db: bool,
 ) -> int:
-    if source_id in REGIONAL_SOURCE_FACTORIES:
+    if is_regional_source(source_id):
         return ingest_regional(
             source_id=source_id,
             output_path=output_path,
             limit=limit,
             persist_db=persist_db,
+            input_file=input_file,
         )
 
     started_at = datetime.now(UTC)
@@ -330,14 +337,77 @@ def build_parser() -> argparse.ArgumentParser:
     ingest_parser.add_argument(
         "--request-delay-seconds",
         type=float,
-        default=2.0,
+        default=DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS,
         help=(
             "Minimum delay between outbound requests. Must be >= 1.0; "
             "default is 2.0 seconds."
         ),
     )
 
+    subparsers.add_parser(
+        "refresh-official",
+        help=(
+            "Fetch and persist the latest configured release for every "
+            "official-source family."
+        ),
+    )
+
     return parser
+
+
+def refresh_official() -> int:
+    """Refresh every official source selected by the central source registry."""
+    failures: list[dict[str, str]] = []
+
+    for source_id in official_refresh_source_ids():
+        try:
+            result = ingest(
+                source_id=source_id,
+                output_path=None,
+                limit=None,
+                input_file=None,
+                authorization_ref=None,
+                start_url=None,
+                request_delay_seconds=DEFAULT_MARKETPLACE_REQUEST_DELAY_SECONDS,
+                persist_db=True,
+            )
+            if result != 0:
+                failures.append(
+                    {
+                        "source": source_id,
+                        "error": f"ingestion exited with code {result}",
+                    }
+                )
+        except Exception as error:
+            failures.append(
+                {
+                    "source": source_id,
+                    "error": f"{type(error).__name__}: {error}",
+                }
+            )
+
+    if failures:
+        print(
+            json.dumps(
+                {
+                    "status": "partial_failure",
+                    "failures": failures,
+                },
+                indent=2,
+            )
+        )
+        return 1
+
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "sources": list(official_refresh_source_ids()),
+            },
+            indent=2,
+        )
+    )
+    return 0
 
 
 def main() -> int:
@@ -358,6 +428,9 @@ def main() -> int:
             request_delay_seconds=args.request_delay_seconds,
             persist_db=args.persist_db,
         )
+
+    if args.command == "refresh-official":
+        return refresh_official()
 
     parser.error(f"Unsupported command: {args.command}")
     return 2

@@ -27,6 +27,7 @@ apps/dashboard/
 │   ├── globals.css
 │   ├── page.tsx                  # Executive overview
 │   ├── vehicle/page.tsx          # Vehicle Intelligence
+│   ├── references/page.tsx       # Official NJKB references (no marketplace dependency)
 │   ├── market/page.tsx           # Market Intelligence
 │   └── methodology/page.tsx      # Data & Methodology
 │
@@ -136,6 +137,10 @@ Shows the current analysis-engine asking-value output, available matched referen
 Shows the selected vehicle segment, analysis-engine valuation, comparable range, source status, signal comparison, and evidence registry.
 
 When the analysis API exposes only a current snapshot, the chart displays one current point rather than fabricating historical observations. Synthetic demo points are labelled illustrative; real database points are labelled observed. When the selected segment lacks comparables, no price is shown.
+
+### Official References
+
+The `/references` page is a separate official NJKB exploration surface using persisted government records only. It shows ranges when multiple variants match a model-year and does not substitute synthetic vehicle prices.
 
 ### Market Intelligence
 

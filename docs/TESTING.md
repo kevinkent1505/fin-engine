@@ -4,12 +4,13 @@ Fin Engine tests should protect contracts and data semantics, not only code path
 
 ## Test commands
 
+Run Yarn commands from the repository root on any operating system. Python 3.12+ is required.
+
 Python:
 
 ```bash
-cd apps/analysis
-uv sync --extra dev
-uv run pytest -v
+yarn setup
+yarn test:analysis -v
 ```
 
 TypeScript API:
@@ -184,7 +185,7 @@ For schema changes:
 
 ```bash
 cd apps/analysis
-uv run alembic upgrade head
+yarn migrate upgrade head
 ```
 
 Before merging a non-trivial migration, verify it against a disposable PostgreSQL/Neon branch where practical.
@@ -219,7 +220,7 @@ Use small limits first.
 Example:
 
 ```bash
-uv run fin-engine-data ingest \
+yarn ingest \
   --source mobil123_authorized_crawl \
   --authorization-ref "permission-reference" \
   --request-delay-seconds 2 \
@@ -241,7 +242,7 @@ Only after the five-record run looks semantically correct should a larger run be
 Before merging changes to ingestion or persistence:
 
 ```text
-[ ] uv run pytest -v
+[ ] yarn test:analysis -v
 [ ] no unexpected normalization failures
 [ ] source semantics / price_kind unchanged or intentionally migrated
 [ ] provenance still retained

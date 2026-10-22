@@ -1,4 +1,5 @@
 import {
+  requestAnalysisReferences,
   requestAnalysisRegionalMarket,
   requestAnalysisValuation,
   requestAnalysisVehicleOptions,
@@ -11,6 +12,8 @@ import type {
   ValuePoint,
   VehicleCatalog,
   VehicleOption,
+  VehicleReferenceMatch,
+  VehicleReferences,
 } from "@/lib/types";
 
 const dashboardVehicle: VehicleOption = {
@@ -47,6 +50,45 @@ function similarRegion(a: string, b: string) {
   const left = a.trim().toLowerCase();
   const right = b.trim().toLowerCase();
   return left === right || left.includes(right) || right.includes(left);
+}
+
+function unavailableReference(): VehicleReferenceMatch {
+  return {
+    status: "unavailable",
+    candidateCount: 0,
+    variants: [],
+    sourceKeys: [],
+    sourceUrls: [],
+  };
+}
+
+function toReferenceMatch(band: {
+  status: "exact" | "range" | "unavailable";
+  value: number | null;
+  low: number | null;
+  high: number | null;
+  candidate_count: number;
+  variants: string[];
+  source_keys: string[];
+  source_urls: string[];
+}): VehicleReferenceMatch {
+  return {
+    status: band.status,
+    value: band.value ?? undefined,
+    low: band.low ?? undefined,
+    high: band.high ?? undefined,
+    candidateCount: band.candidate_count,
+    variants: band.variants,
+    sourceKeys: band.source_keys,
+    sourceUrls: band.source_urls,
+  };
+}
+
+function unavailableReferences(): VehicleReferences {
+  return {
+    njkb: unavailableReference(),
+    auctionLimit: unavailableReference(),
+  };
 }
 
 export async function getVehicleCatalog(): Promise<VehicleCatalog> {
@@ -186,21 +228,70 @@ export async function getRegionalMarketData(): Promise<{
   };
 }
 
+function referenceSources(references: VehicleReferences): SourceDescriptor[] {
+  const sources: SourceDescriptor[] = [];
+
+  if (references.njkb.status !== "unavailable") {
+    sources.push({
+      id: references.njkb.sourceKeys[0] ?? "kemendagri_njkb",
+      name: "Kemendagri NJKB",
+      type: "Official vehicle reference value",
+      confidence: "official",
+      lastUpdated: "Latest persisted reference snapshot",
+      note:
+        references.njkb.status === "exact"
+          ? "A single official NJKB value is available for this make, model and year."
+          : `${references.njkb.candidateCount} official NJKB variant records match this make, model and year. The dashboard shows their range instead of guessing which variant applies.`,
+      url: references.njkb.sourceUrls[0],
+    });
+  }
+
+  if (references.auctionLimit.status !== "unavailable") {
+    sources.push({
+      id: references.auctionLimit.sourceKeys[0] ?? "djp_vehicle_auction_limits",
+      name: "DJP auction reference",
+      type: "Official auction / downside reference",
+      confidence: "official",
+      lastUpdated: "Latest persisted reference snapshot",
+      note:
+        references.auctionLimit.status === "exact"
+          ? "A single auction reference is available for this make, model and year."
+          : `${references.auctionLimit.candidateCount} auction reference records match this make, model and year. The dashboard shows their range instead of selecting one arbitrarily.`,
+      url: references.auctionLimit.sourceUrls[0],
+    });
+  }
+
+  return sources;
+}
+
 /**
  * Server-side data access boundary for dashboard pages.
  *
  * Marketplace valuation remains synthetic for the POC when demo records are
- * selected. Official regional market context is independently loaded from the
- * latest BPS snapshot persisted in Neon, with the committed fixture retained
- * only as an availability fallback.
+ * selected. Official reference data is resolved separately from persisted
+ * Neon records. Ambiguous model-year references are represented as ranges,
+ * never as a guessed variant match.
  */
 export async function getDashboardData(
   vehicle: VehicleOption = dashboardVehicle,
 ): Promise<DashboardData> {
-  const [analysisResult, { regionalMarket, regionalSource }] = await Promise.all([
+  const [analysisResult, { regionalMarket, regionalSource }, referenceResult] = await Promise.all([
     requestAnalysisValuation(vehicle),
     getRegionalMarketData(),
+    requestAnalysisReferences({
+      make: vehicle.make,
+      model: vehicle.model,
+      year: vehicle.year,
+    }),
   ]);
+
+  const references: VehicleReferences =
+    referenceResult.status === "ok"
+      ? {
+          njkb: toReferenceMatch(referenceResult.data.njkb),
+          auctionLimit: toReferenceMatch(referenceResult.data.auction_limit),
+        }
+      : unavailableReferences();
 
   if (analysisResult.status === "not_found") {
     return {
@@ -208,7 +299,7 @@ export async function getDashboardData(
       analysis: {
         state: "no_data",
         label: "No matching valuation available",
-        detail: `${analysisResult.detail} No demo price has been substituted. Choose another vehicle or add matching listing observations to the analysis source.`,
+        detail: `${analysisResult.detail} No demo price has been substituted. Select another vehicle or add authorized marketplace observations.`,
       },
       snapshot: {
         make: vehicle.make,
@@ -222,14 +313,16 @@ export async function getDashboardData(
         observedRange: [0, 0],
         lastRefresh: "No valuation available",
       },
+      references,
       regionalMarket,
-      sources: [regionalSource],
+      sources: [regionalSource, ...referenceSources(references)],
     };
   }
 
   if (analysisResult.status !== "ok") {
     return {
       ...pocDashboardData,
+      references: unavailableReferences(),
       regionalMarket,
       sources: [
         regionalSource,
@@ -262,6 +355,27 @@ export async function getDashboardData(
     confidence,
   };
 
+  const referencePoints: ValuePoint[] = [];
+  if (references.njkb.status === "exact" && references.njkb.value !== undefined) {
+    referencePoints.push({
+      label: "Official NJKB reference",
+      value: references.njkb.value,
+      kind: "njkb",
+      confidence: "official",
+    });
+  }
+  if (
+    references.auctionLimit.status === "exact" &&
+    references.auctionLimit.value !== undefined
+  ) {
+    referencePoints.push({
+      label: "Auction / downside reference",
+      value: references.auctionLimit.value,
+      kind: "auction_limit",
+      confidence: "official",
+    });
+  }
+
   const analysisSource: SourceDescriptor = {
     id: "fin_engine_analysis",
     name: "Fin Engine analysis engine",
@@ -282,6 +396,7 @@ export async function getDashboardData(
   return {
     ...pocDashboardData,
     mode: "analysis",
+    references,
     regionalMarket,
     analysis: {
       state: observedDatabaseBacked
@@ -315,7 +430,7 @@ export async function getDashboardData(
         : syntheticDatabaseBacked
           ? "Synthetic POC marketplace dataset"
           : "Development comparison dataset",
-      values: [listingSignal],
+      values: [listingSignal, ...referencePoints],
       priceHistory: [
         {
           date: "Current",
@@ -323,7 +438,7 @@ export async function getDashboardData(
         },
       ],
     },
-    sources: [regionalSource, analysisSource],
+    sources: [regionalSource, analysisSource, ...referenceSources(references)],
   };
 }
 

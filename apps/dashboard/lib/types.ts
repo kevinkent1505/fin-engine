@@ -45,6 +45,7 @@ export type VehicleOption = {
 export type VehicleCatalog = {
   options: VehicleOption[];
   source:
+    | "official"
     | "database"
     | "database_demo"
     | "database_mixed"
@@ -73,10 +74,27 @@ export type AnalysisStatus = {
   detail: string;
 };
 
+export type VehicleReferenceMatch = {
+  status: "exact" | "range" | "unavailable";
+  value?: number;
+  low?: number;
+  high?: number;
+  candidateCount: number;
+  variants: string[];
+  sourceKeys: string[];
+  sourceUrls: string[];
+};
+
+export type VehicleReferences = {
+  njkb: VehicleReferenceMatch;
+  auctionLimit: VehicleReferenceMatch;
+};
+
 export type DashboardData = {
   mode: "analysis" | "fallback" | "unavailable";
   analysis: AnalysisStatus;
   snapshot: VehicleSnapshot;
+  references: VehicleReferences;
   regionalMarket: RegionalMarketPoint[];
   sources: SourceDescriptor[];
 };

@@ -2,6 +2,41 @@
 
 Fin Engine is a B2B financial-data and analysis platform. The codebase deliberately separates public-product concerns, business presentation, and analytical/data-domain logic.
 
+## Product independence and integration direction
+
+Fin Engine is an independent financial data and analytics product. It must
+build, run, deploy and serve customers without Riil. Riil must run and
+publish calculators/articles without Fin Engine. They keep distinct databases,
+credentials, CI/CD, release calendars and business responsibilities.
+
+**Public and externally obtainable data:** Fin Engine retrieves rates,
+economic statistics, vehicle reference values and other authorized evidence
+**directly from their original provider**, not by reading Riil's curated
+market snapshots. Native provider adapters maintain provenance, licenses,
+quality checks and historical revisions.
+
+**First-party Riil data (optional integration):** Only Riil can originate its
+own usage events, calculator interactions and user-entered scenarios. Riil
+owns any server-side exporter and the privacy/purpose policy; Fin Engine owns
+the inbound validator and its own limited first-party analysis domain. Start
+with safe aggregate event counts. Individual scenario records require
+separate permitted purpose, notice/consent where required, access controls,
+minimization, retention and deletion handling. No raw D1 mirroring, direct
+database access or automatically enabled transfer.
+
+**Optional later reverse direction:** Fin Engine's product-neutral API may
+supply independent verified financial context to Riil, but only through a
+Riil-owned inbound adapter that performs validation, mapping, caching and
+editorial checks. Riil's existing calculators and last-known-good data
+continue to operate if Fin Engine is unavailable.
+
+Integration adapters are small independently maintained modules, not a
+mandatory shared microservice. Neither product imports the other's
+application code, and the production release of one must never block the
+other's runtime or deployment.
+
+See [the updated Riil integration roadmap](./RIIL_INTEGRATION_ROADMAP.md).
+
 ## System boundary
 
 ```text

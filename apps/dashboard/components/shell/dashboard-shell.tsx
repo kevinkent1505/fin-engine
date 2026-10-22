@@ -28,7 +28,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="pointer-events-auto hidden md:block">
+          <div className="pointer-events-auto hidden xl:block">
             <Suspense fallback={null}>
               <DashboardNavigation variant="desktop" />
             </Suspense>
@@ -54,7 +54,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </div>
       </main>
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] xl:hidden">
         <div className="pointer-events-auto mx-auto max-w-md">
           <Suspense fallback={null}>
             <DashboardNavigation variant="mobile" />

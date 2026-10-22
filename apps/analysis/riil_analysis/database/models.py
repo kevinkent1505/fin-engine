@@ -1,7 +1,10 @@
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    Numeric,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -218,5 +221,52 @@ class RegionalVehicleStatistic(Base):
             "ix_regional_vehicle_statistics_region_year",
             "region",
             "year",
+        ),
+    )
+
+
+class MarketIndicatorObservation(Base):
+    """Source-attributed market indicator, with append-only revisions.
+
+    Riil editorial publications and independently acquired provider data
+    intentionally use distinct source keys. A revision hash identifies a
+    semantic observation so replaying an unchanged feed is idempotent.
+    """
+
+    __tablename__ = "market_indicator_observations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    source_key: Mapped[str] = mapped_column(
+        ForeignKey("data_sources.source_key"), nullable=False
+    )
+    ingestion_run_id: Mapped[str] = mapped_column(
+        ForeignKey("ingestion_runs.id"), nullable=False
+    )
+    indicator_code: Mapped[str] = mapped_column(String(100), nullable=False)
+    as_of: Mapped[date] = mapped_column(Date(), nullable=False)
+    value: Mapped[Decimal] = mapped_column(Numeric(22, 6), nullable=False)
+    unit: Mapped[str] = mapped_column(String(80), nullable=False)
+    original_publisher: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    origin_snapshot_url: Mapped[str] = mapped_column(Text, nullable=False)
+    snapshot_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    revision_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    metadata_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_key",
+            "indicator_code",
+            "as_of",
+            "revision_sha256",
+            name="uq_market_indicator_source_date_revision",
+        ),
+        Index(
+            "ix_market_indicator_code_date",
+            "indicator_code",
+            "as_of",
         ),
     )
