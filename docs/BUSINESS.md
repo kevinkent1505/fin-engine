@@ -4,7 +4,7 @@ This document explains Fin Engine for business, product, strategy, sales, risk, 
 
 ## Executive summary
 
-Fin Engine is a B2B vehicle-data and decision-support platform being developed under Riil.
+Fin Engine is an **independent B2B financial-data and decision-support platform**. Vehicle intelligence is its first applied domain; the architecture also supports macroeconomic indicators and, only where authorized, privacy-governed first-party behavioral analysis. Riil is a separate consumer product and potential first-party data partner, not Fin Engine's parent application or required runtime dependency.
 
 Its purpose is to turn fragmented vehicle-market and official reference data into structured, traceable signals that can support decisions such as:
 
