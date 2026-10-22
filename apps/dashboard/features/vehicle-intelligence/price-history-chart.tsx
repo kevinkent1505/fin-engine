@@ -3,9 +3,15 @@
 import { area, curveMonotoneX, line, scaleLinear, scalePoint } from "d3";
 
 import { formatRupiahCompact } from "@/lib/format";
-import type { HistoricalPricePoint } from "@/lib/types";
+import type { DataConfidence, HistoricalPricePoint } from "@/lib/types";
 
-export function PriceHistoryChart({ data }: { data: HistoricalPricePoint[] }) {
+export function PriceHistoryChart({
+  data,
+  confidence,
+}: {
+  data: HistoricalPricePoint[];
+  confidence: DataConfidence;
+}) {
   const width = 760;
   const height = 250;
   const left = 60;
@@ -38,10 +44,17 @@ export function PriceHistoryChart({ data }: { data: HistoricalPricePoint[] }) {
         .curve(curveMonotoneX)(data)
     : null;
 
-  const title = hasHistory ? "Observed asking-price trend" : "Current asking-price signal";
+  const illustrative = confidence === "illustrative";
+  const title = hasHistory
+    ? illustrative ? "Illustrative price path" : "Observed asking-price trend"
+    : illustrative ? "Illustrative asking-price snapshot" : "Current asking-price snapshot";
   const description = hasHistory
-    ? "Repeated marketplace observations are shown over time."
-    : "The analysis engine currently exposes the valuation snapshot only. Historical database observations will be added to this view when the analysis API exposes a time series.";
+    ? illustrative
+      ? "This path uses demo values and is not an observed market-price history."
+      : "Repeated marketplace observations are shown over time."
+    : illustrative
+      ? "A single demo estimate is shown. No observed price-history series is available."
+      : "Only the current observed valuation snapshot is available. Historical observations will appear once the analysis API exposes a time series.";
 
   return (
     <figure className="glass-panel min-w-0 overflow-hidden rounded-2xl p-4 sm:p-5">

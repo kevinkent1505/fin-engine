@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
 
 const navigation = [
   { href: "/", label: "Overview", shortLabel: "Overview" },
@@ -19,20 +19,18 @@ export function DashboardNavigation({
   variant: "desktop" | "mobile";
 }) {
   const pathname = usePathname();
-  const [selectionSuffix, setSelectionSuffix] = useState("");
-
-  useEffect(() => {
-    const current = new URLSearchParams(window.location.search);
+  const searchParams = useSearchParams();
+  const selectionSuffix = useMemo(() => {
     const selection = new URLSearchParams();
 
     for (const key of selectionKeys) {
-      const value = current.get(key);
+      const value = searchParams.get(key);
       if (value) selection.set(key, value);
     }
 
     const encoded = selection.toString();
-    setSelectionSuffix(encoded ? `?${encoded}` : "");
-  }, [pathname]);
+    return encoded ? `?${encoded}` : "";
+  }, [searchParams]);
 
   if (variant === "desktop") {
     return (

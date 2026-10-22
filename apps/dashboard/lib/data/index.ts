@@ -136,18 +136,54 @@ export function resolveVehicleSelection(
 }
 
 function bpsFallbackSource(): SourceDescriptor {
-  return (
-    pocDashboardData.sources.find((source) =>
-      source.id.startsWith("bps_vehicle_stock_"),
-    ) ?? {
-      id: "bps_vehicle_stock_fallback",
-      name: "Badan Pusat Statistik",
-      type: "Regional vehicle stock",
-      confidence: "official",
-      lastUpdated: "Fallback fixture",
-      note: "Static fallback used because the persisted BPS snapshot is unavailable.",
-    }
+  const fixture = pocDashboardData.sources.find((source) =>
+    source.id.startsWith("bps_vehicle_stock_"),
   );
+
+  return {
+    id: "bps_vehicle_stock_2023_static_fallback",
+    name: fixture?.name ?? "Badan Pusat Statistik",
+    type: "Regional vehicle stock (bundled reference)",
+    confidence: "official",
+    lastUpdated: "2023 BPS table · bundled fallback",
+    note:
+      "Historical 2023 BPS counts bundled with the dashboard are shown because the persisted regional snapshot is unavailable. They are official historical figures, not a live Neon refresh.",
+    url: fixture?.url,
+  };
+}
+
+export async function getRegionalMarketData(): Promise<{
+  regionalMarket: RegionalMarketPoint[];
+  regionalSource: SourceDescriptor;
+  isFallback: boolean;
+}> {
+  const result = await requestAnalysisRegionalMarket();
+
+  if (result.status !== "ok" || result.data.regions.length === 0) {
+    return {
+      regionalMarket: pocDashboardData.regionalMarket,
+      regionalSource: bpsFallbackSource(),
+      isFallback: true,
+    };
+  }
+
+  return {
+    regionalMarket: result.data.regions.map((point) => ({
+      region: point.region,
+      passengerCars: point.passenger_cars,
+    })),
+    regionalSource: {
+      id: result.data.source,
+      name: "Badan Pusat Statistik",
+      type: "Official regional vehicle stock",
+      confidence: "official",
+      lastUpdated: `${result.data.year} BPS table · persisted snapshot`,
+      note:
+        "Passenger-car counts come from the official BPS table persisted in Neon. They indicate regional vehicle stock, not market prices or sales.",
+      url: result.data.source_url,
+    },
+    isFallback: false,
+  };
 }
 
 /**
@@ -161,32 +197,35 @@ function bpsFallbackSource(): SourceDescriptor {
 export async function getDashboardData(
   vehicle: VehicleOption = dashboardVehicle,
 ): Promise<DashboardData> {
-  const [analysisResult, regionalResult] = await Promise.all([
+  const [analysisResult, { regionalMarket, regionalSource }] = await Promise.all([
     requestAnalysisValuation(vehicle),
-    requestAnalysisRegionalMarket(),
+    getRegionalMarketData(),
   ]);
 
-  const regionalMarket: RegionalMarketPoint[] =
-    regionalResult.status === "ok"
-      ? regionalResult.data.regions.map((point) => ({
-          region: point.region,
-          passengerCars: point.passenger_cars,
-        }))
-      : pocDashboardData.regionalMarket;
-
-  const regionalSource: SourceDescriptor =
-    regionalResult.status === "ok"
-      ? {
-          id: regionalResult.data.source,
-          name: "Badan Pusat Statistik",
-          type: "Official regional vehicle stock",
-          confidence: "official",
-          lastUpdated: `${regionalResult.data.year} table · latest persisted refresh`,
-          note:
-            "Passenger-car counts were fetched from the public BPS statistics table and persisted in Neon. They provide regional market-depth context, not a vehicle-price estimate.",
-          url: regionalResult.data.source_url,
-        }
-      : bpsFallbackSource();
+  if (analysisResult.status === "not_found") {
+    return {
+      mode: "unavailable",
+      analysis: {
+        state: "no_data",
+        label: "No matching valuation available",
+        detail: `${analysisResult.detail} No demo price has been substituted. Choose another vehicle or add matching listing observations to the analysis source.`,
+      },
+      snapshot: {
+        make: vehicle.make,
+        model: vehicle.model,
+        year: vehicle.year,
+        region: vehicle.region,
+        variant: "No matching comparables",
+        sampleSize: 0,
+        values: [],
+        priceHistory: [],
+        observedRange: [0, 0],
+        lastRefresh: "No valuation available",
+      },
+      regionalMarket,
+      sources: [regionalSource],
+    };
+  }
 
   if (analysisResult.status !== "ok") {
     return {
@@ -201,7 +240,7 @@ export async function getDashboardData(
       analysis: {
         state: "fallback",
         label: "Default demo vehicle shown",
-        detail: `${analysisResult.detail} The dashboard has returned to its clearly labelled default POC vehicle rather than showing unrelated numbers for your selection.`,
+        detail: `${analysisResult.detail} The analysis service is unavailable, so a separate, clearly labelled default demo vehicle is shown. Its values do not describe your previous selection.`,
       },
     };
   }
@@ -294,8 +333,8 @@ export async function getVehicleSnapshot(vehicle?: VehicleOption) {
 }
 
 export async function getRegionalMarket() {
-  const data = await getDashboardData();
-  return data.regionalMarket;
+  const { regionalMarket } = await getRegionalMarketData();
+  return regionalMarket;
 }
 
 export async function getSources(vehicle?: VehicleOption) {

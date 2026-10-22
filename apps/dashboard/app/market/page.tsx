@@ -1,19 +1,19 @@
 import { MetricCard } from "@/components/ui/metric-card";
 import { RegionalMarketChart } from "@/features/market-intelligence/regional-market-chart";
-import { getDashboardData } from "@/lib/data";
+import { getRegionalMarketData } from "@/lib/data";
 import { formatNumberCompact } from "@/lib/format";
 
 export default async function MarketIntelligencePage() {
-  const data = await getDashboardData();
-  const totalPassengerCars = data.regionalMarket.reduce(
+  const { regionalMarket, regionalSource, isFallback } = await getRegionalMarketData();
+  const totalPassengerCars = regionalMarket.reduce(
     (sum, item) => sum + item.passengerCars,
     0,
   );
-  const largest = [...data.regionalMarket].sort(
+  const largest = [...regionalMarket].sort(
     (a, b) => b.passengerCars - a.passengerCars,
   )[0];
   const averagePassengerCars = Math.round(
-    totalPassengerCars / data.regionalMarket.length,
+    totalPassengerCars / Math.max(regionalMarket.length, 1),
   );
 
   return (
@@ -30,27 +30,52 @@ export default async function MarketIntelligencePage() {
         </p>
       </section>
 
+      <section
+        className="glass-panel flex flex-col justify-between gap-4 rounded-2xl p-4 sm:flex-row sm:items-center sm:p-5"
+        aria-label="Regional data source and freshness"
+      >
+        <div className="min-w-0">
+          <div className="text-xs font-bold uppercase tracking-[0.14em] text-blue-900">
+            {isFallback ? "Bundled historical BPS snapshot" : "Persisted official BPS snapshot"}
+          </div>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{regionalSource.lastUpdated}</p>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-700">{regionalSource.note}</p>
+        </div>
+        {regionalSource.url ? (
+          <a
+            className="action-secondary w-full shrink-0 sm:w-auto"
+            href={regionalSource.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View BPS source <span className="sr-only">(opens in new tab)</span>
+          </a>
+        ) : null}
+      </section>
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Regional market summary">
         <MetricCard
           metric={{
             label: "Passenger cars shown",
             value: formatNumberCompact(totalPassengerCars),
-            helper: "Total across the provinces included in this demo",
+            helper: "Total across the provinces shown, not all of Indonesia",
             tone: "positive",
           }}
         />
         <MetricCard
           metric={{
             label: "Province with the most cars",
-            value: largest.region,
-            helper: `${formatNumberCompact(largest.passengerCars)} passenger cars`,
+            value: largest?.region ?? "Not available",
+            helper: largest
+              ? `${formatNumberCompact(largest.passengerCars)} passenger cars`
+              : "No regional observations are available",
           }}
         />
         <MetricCard
           metric={{
             label: "Provinces included",
-            value: String(data.regionalMarket.length),
-            helper: "Number of provinces shown in this demo view",
+            value: String(regionalMarket.length),
+            helper: "Number of provinces in this view",
           }}
         />
         <MetricCard
@@ -63,7 +88,7 @@ export default async function MarketIntelligencePage() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-        <RegionalMarketChart data={data.regionalMarket} />
+        <RegionalMarketChart data={regionalMarket} />
 
         <article className="glass-panel min-w-0 rounded-2xl p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-slate-950">Province-by-province comparison</h2>
@@ -86,7 +111,7 @@ export default async function MarketIntelligencePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/90">
-                {data.regionalMarket.map((item) => (
+                {regionalMarket.map((item) => (
                   <tr key={item.region} className="bg-white/60">
                     <th scope="row" className="px-3 py-3 font-semibold text-slate-950">{item.region}</th>
                     <td className="px-3 py-3 text-right text-slate-800">
@@ -96,7 +121,7 @@ export default async function MarketIntelligencePage() {
                       {new Intl.NumberFormat("en", {
                         style: "percent",
                         maximumFractionDigits: 1,
-                      }).format(item.passengerCars / totalPassengerCars)}
+                      }).format(totalPassengerCars > 0 ? item.passengerCars / totalPassengerCars : 0)}
                     </td>
                   </tr>
                 ))}
