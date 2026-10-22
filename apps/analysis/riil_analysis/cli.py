@@ -352,6 +352,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    refresh_parser = subparsers.add_parser(
+        "refresh-data",
+        help=(
+            "Update due government/public data in Neon. Skips fresh sources; "
+            "excludes permission-gated marketplace crawlers."
+        ),
+    )
+    refresh_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Ignore freshness and re-fetch all configured public sources.",
+    )
+
     return parser
 
 
@@ -410,6 +423,28 @@ def refresh_official() -> int:
     return 0
 
 
+def refresh_data(*, force: bool = False) -> int:
+    """Single command used by local development, API workers and CI."""
+    from riil_analysis.refresh import refresh_public_data
+
+    try:
+        result = refresh_public_data(get_database_url(), force=force)
+    except Exception as error:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "error": f"{type(error).__name__}: {error}",
+                },
+                indent=2,
+            )
+        )
+        return 1
+
+    print(json.dumps(result, indent=2))
+    return 1 if result["status"] == "partial_failure" else 0
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -431,6 +466,9 @@ def main() -> int:
 
     if args.command == "refresh-official":
         return refresh_official()
+
+    if args.command == "refresh-data":
+        return refresh_data(force=args.force)
 
     parser.error(f"Unsupported command: {args.command}")
     return 2
