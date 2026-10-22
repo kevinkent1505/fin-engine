@@ -6,9 +6,9 @@ Fin Engine turns vehicle-market and official reference data into traceable analy
 
 For a non-technical explanation of the product, target customers, use cases, data signals, limitations, commercial options and roadmap, see the [Business Overview](./docs/BUSINESS.md).
 
-For the cross-repository plan with Riil, see [Riil + Fin Engine Integration Roadmap](./docs/RIIL_INTEGRATION_ROADMAP.md). **Both products remain independently operable and developable.** In the first phase, Riil may publish approved data to Fin Engine through an asynchronous adapter. In later phases, Fin Engine may supply source-backed indicators back to Riil through a separate inbound adapter. Neither product shares application internals or databases.
+For the cross-repository plan with Riil, see [Riil + Fin Engine Integration Roadmap](./docs/RIIL_INTEGRATION_ROADMAP.md). **Both products remain independently operable, developable and deployable.** Fin Engine obtains publicly available financial data **directly from original authorized sources**. Riil may later export **approved first-party usage and scenario signals** through a dedicated purpose-limited adapter, never by mirroring its private D1 database. In later phases Fin Engine may provide source-backed intelligence back to Riil through a separate adapter.
 
-**First integration milestone available:** [read-only Riil public market snapshot importer](./docs/RIIL_FEED_PHASE1.md), with independent source-validation, replay-safe indicator history and an explicit `yarn import:riil-market` preview/persist command. No reverse feed or behavioral-data export is enabled.
+**No first-party Riil export has been activated.** The previously proposed Riil-public-market importer was retired because it duplicated data available from original providers. The generic market indicator migration remains for independently sourced datasets.
 
 ## Current status
 
