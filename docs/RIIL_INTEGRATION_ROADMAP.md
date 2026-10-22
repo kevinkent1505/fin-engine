@@ -1,205 +1,197 @@
-# Riil + Fin Engine: reconciled development roadmap
+# Riil + Fin Engine: independent products, phased data exchange
 
-**Status:** proposed integration plan, 22 October 2026. Not an implementation claim.
-**Fin Engine reference:** `kevinkent1505/fin-engine`, branch `feature/marketplace-poc`.
-**Riil reference:** `abagusdp/riil`, branch `main` (read-only review).
-**Design decision:** two repositories, separate release cycles, independent data stores, and versioned integration contracts. Fin Engine is a modular service/product in its own right, not Riil's backend implementation.
+**Status:** updated architecture decision and proposed roadmap, 22 October 2026.
+**Repositories:** `abagusdp/riil` (reviewed read-only, `main`) and `kevinkent1505/fin-engine` (`feature/marketplace-poc`).
+**Non-negotiable:** both products must remain independently operable, developable, deployable, and testable. They cooperate through adapters and stable data contracts, never through shared application internals.
 
-## 1. Product boundaries
+## 1. The direction of integration is deliberate
 
-**Riil (`riil.id`):** consumer money decisions, browser-side financial calculations, content and bilingual editorial publishing, user-facing explanation, CMS, account/saved-plan features, analytics/consent, Cloudflare Pages/Functions/D1. Riil owns the consumer interpretation, wording, product policies and release of its pages.
+**Phase 1: Riil → adapter → Fin Engine.** Riil is initially a **source** of Riil-produced/curated financial signals and, once separately approved, privacy-reviewed aggregate usage insights. Fin Engine consumes an asynchronous, versioned feed. It does not control Riil's collection, publication, or consumer experience.
 
-**Fin Engine:** reusable source adapters, official/public-data retrieval, quality and provenance, historical observations, standardized indicators, analytics and B2B product endpoints, operational ingestion, Neon/PostgreSQL, Python analysis, Fastify API, and its independent business dashboard. Fin Engine owns source semantics, ingestion schedules and database schema.
+**Later phases: Fin Engine → adapter → Riil.** Fin Engine may publish verified financial indicators, source-backed vehicle context, and other derived signals back to Riil. The reverse feed is opt-in, versioned, and translated by an independent Riil-side adapter into Riil's existing static-data format. It is never a dependency of Riil's core calculators.
 
-**Do not transfer ownership of:** Riil's `assets/riil.js`, `assets/engines/dampak.js`, HTML routes, Git-backed articles, CMS, auth, or D1 into Fin Engine. Preserve Riil's current static, no-framework calculator design. No cross-repository source imports, shared database connection, submodule, or direct Fin Engine commits to Riil.
+**Always:** Fin Engine also operates independently using official, licensed, or authorized external sources. Riil operates independently using its existing market-rate workflow, static snapshots, Cloudflare backend and calculator engines. A failed integration must not stop either application.
 
-**Deployment:** Riil remains deployable if Fin Engine is down; Fin Engine remains deployable and independently marketable without Riil. No direct browser-to-Neon path.
+The relation is **two independent products with potentially bidirectional data exchange**, not a parent application and dependent backend.
 
-## 2. What exists today (repo-verified)
+## 2. Existing product ownership (verified against the repositories)
 
-| Area | Riil | Fin Engine | Implication |
-| --- | --- | --- | --- |
-| Consumer calculations | Browser engines (`assets/riil.js`, `assets/engines/dampak.js`); engine reference tests | Python vehicle valuation | Keep consumer math in Riil. Do not duplicate a formula without independent contract tests. |
-| Rates | `fetch-rates.py` + `rates.yml` refresh `data/market-rates.json` and the inlined `MARKET` block | No BI-Rate/SBDK domain yet | Best first read-only integration; dual-run before cutover. |
-| Other market signals | CMS-controlled `data/market-snapshot.json`, built into `assets/dampak.js` | No general indicator-series model yet | Phase 2: one automated, verifiable source at a time, with editorial override. |
-| Automotive data | Vehicle-loan calculator, related articles, and consumer context | Official NJKB, BPS vehicle stock, DJP auction values, authorized marketplace adapters; Neon history | Fin Engine supplies context or market references **with clear meanings**; Riil remains responsible for credit cash-flow arithmetic. |
-| Editorial | Markdown, article builder, CMS, GitHub workflows and editorial standards | No CMS | Do not centralize article publication. Optionally supply cited fact packs with human review. |
-| Analytics and personal data | D1 website tracker records event counters and finished calculator inputs; separate account/saved-calculation tables | No Riil event or identity subsystem | No raw D1 replication into Neon. Privacy and disclosure review required for any future analytics product. |
-| API | Cloudflare Functions endpoints for CMS, accounts, analytics | Fastify public API; Python internal API | Add consumer-independent public indicators to Fastify; Riil consumes versioned output, never internal Python API. |
+| Ownership | Riil | Fin Engine |
+| --- | --- | --- |
+| User/product experience | Consumer calculators, Dampak tools, bilingual content and articles, CMS | Business dashboard, enterprise-oriented analytical experiences |
+| Core calculations | Client-side loan/IRR, savings, personal impact engines | Python analysis, vehicle reference and valuation functions |
+| Storage | Cloudflare D1 for accounts/insights; Git-tracked editorial market snapshots | Neon PostgreSQL historical source records and analytical observations |
+| Operational jobs | `fetch-rates.py` + `.github/workflows/rates.yml`, article and Dampak builders | Python ingestion CLI, source adapters, FastAPI analysis, Fastify public API |
+| Source-specific data | `data/market-rates.json`, `data/market-snapshot.json`, Riil analytics counters | NJKB, BPS vehicle stock, DJP auction references, authorized vehicle-market adapters |
+| Changes and release | Riil's repo owner and CI/CD | Fin Engine's repo owner and CI/CD |
 
-Evidence: `abagusdp/riil/README.md`, `docs/ARTICLE-ARCHITECTURE.md`, `docs/PLAN-DAMPAK-DOMPET.md`, `data/market-rates.json`, `data/market-snapshot.json`, `fetch-rates.py`, `.github/workflows/rates.yml`, `build-dampak.py`, `functions/_lib/insights.js`; and Fin Engine `docs/ARCHITECTURE.md`, `docs/DATABASE.md`, `apps/api/src/index.ts`, `apps/analysis/riil_analysis/main.py`.
+**Do not move** Riil's calculators, auth, CMS, articles, D1 tables or `assets/riil.js` into Fin Engine. **Do not give** Fin Engine direct D1 access or Riil direct Neon access. No cross-repository imports, Git submodules, shared deployment pipeline or mandatory live calls between the products.
 
-## 3. Target architecture
+### Critical privacy observation
 
-```text
-Official/public sources (BI, BPS, OJK, published market data, authorized marketplaces)
-    |
-    v
-Fin Engine: source adapters + provenance + validation + historical observations
-    |                      separate repository / deployments / Neon
-    v
-Fin Engine domain modules (macroeconomics, automotive, later other modules)
-    |
-    v
-Fastify public API: stable versioned indicator/reference contracts
-    |                                     |
-    | build-time read-only snapshot       | authenticated B2B API
-    v                                     v
-Riil GitHub Actions adapter         Fin Engine B2B clients/dashboard
-    |
-    v
-Riil's existing validated JSON snapshot(s)
-    |  last-known-good on source failures
-    v
-Riil build scripts -> assets/riil.js MARKET + assets/dampak.js SNAPSHOT
-    |
-    v
-Cloudflare Pages / Functions / D1 (consumer product)
-```
+Riil's tracker currently retains some finished calculator inputs in Cloudflare D1 (`functions/_lib/insights.js`), not only event counts. Some such financial values may still be sensitive or re-identifiable even without names, emails or IP addresses. This roadmap **does not authorize** exporting those raw records to Fin Engine. Any usage-derived feed requires an explicit disclosure/lawful-basis and data-governance review, aggregation and small-cohort suppression **before** transfer, retention and deletion rules, security controls, and an approved commercial-use policy. The default is no personal or row-level calculator data transfer.
 
-**Initial integration uses a scheduled, read-only, build-time snapshot.** Riil does not need a live API call for basic public rate displays. A later authenticated Cloudflare server-side proxy may serve time-sensitive information when latency, freshness and access controls justify it. Do not make Riil's core calculator inputs dependent on the network.
-
-## 4. Domain design within Fin Engine
-
-Keep the existing three app processes for now; modularize *inside* the Python analysis app before considering separate domain microservices:
+## 3. Target architecture: adapters at both boundaries
 
 ```text
-apps/analysis/
-  fin_engine/                        # proposed incremental destination; not present yet
-    core/
-      sources.py                      # registry, licensing/access metadata
-      observations.py                 # provenance / temporal and quality primitives
-      quality.py
-      ingestion.py
-    domains/
-      automotive/                    # NJKB, auction, regional vehicle stock, valuation
-      macroeconomics/                # BI-Rate, JISDOR, inflation; later SBDK
-    providers/
-      bank_indonesia/
-      bps/
-      ...
-    service/
-      indicators.py
-  riil_analysis/                      # existing module; migrate incrementally
-apps/api/                              # versioned external contracts + auth
-apps/dashboard/                        # B2B/internal presentation only
-contracts/                             # language-neutral API examples/schemas
+Riil product (repo A)                           Fin Engine product (repo B)
+┌─────────────────────────────┐                  ┌────────────────────────────────┐
+│ Static calculators & tools  │                  │ Independent official sources   │
+│ Articles, CMS, Cloudflare   │                  │ BI, BPS, NJKB, etc.            │
+│ D1, existing market data    │                  │                                │
+└──────────────┬──────────────┘                  └───────────────┬────────────────┘
+               │                                                 │
+      [Riil outbound adapter]                                     │
+       export approved data                                       │
+       versioned & asynchronous                                   │
+               │                                                 │
+               ▼                                                 ▼
+       Transfer boundary ───────► [Fin Engine inbound adapter]  ingestion
+        optional, retryable         validate, dedupe, map         │
+        signed / authenticated                    │               │
+                                                  ▼               ▼
+                                           Fin Engine Core
+                                       domains + Neon + analytics
+                                                  │
+                             (later only)          ▼
+        [Riil inbound adapter] ◄─────── [Fin Engine published API]
+        translate, validate, cache            versioned, source-backed
+               │
+               ▼
+       Existing Riil snapshot/build
+               │
+               ▼
+       Riil pages and browser math
 ```
 
-Do not rename all existing modules at once. Add shared abstractions when the second non-automotive ingestion proves they are needed. Use compatibility imports during transitions. Domains must own their own models and tests; `vehicle_records` must not be repurposed as a generic indicator table.
+**Adapter placement:** an adapter is a thin integration module/job, not necessarily a third microservice or third repository. For the initial scale, each owner maintains its own edge: Riil's outbound exporter in Riil, Fin Engine's importer in Fin Engine; later Fin Engine's publisher in Fin Engine and Riil's inbound adapter in Riil. If multiple external products eventually depend on the bridge, consider extracting an independently deployed integration gateway. Do not introduce that infrastructure prematurely.
 
-**Data model for market indicators:** indicators (stable code, unit, economic definition), sources (publisher/URL/license/access restrictions), observations (as-of/period, fetched-at, value, source, source-run ID, original payload hash, revision/version), and ingestion runs with quality status. Differentiate event date, reference period, collection time, and publication time. Store revisions append-only. Add migrations, indexes and freshness rules explicitly.
+**No forced uptime coupling:** scheduled exports/ingestions, durable snapshots, idempotent imports, last-known-good behavior, and explicit freshness metadata. Riil's pages still work if Fin Engine is down; Fin Engine's existing core products still work if Riil stops sending data.
 
-## 5. API integration contract (proposed, not implemented)
+## 4. Phase 1: Riil feeds Fin Engine (first integration milestone)
 
-First public capability, exposed by Fin Engine **Fastify**, not the Python internal API:
+### 4.1 Start with two distinct *candidate* feeds
 
-```http
-GET /v1/indicators/bi_rate/latest
-Accept: application/json
-```
+1. **Public financial market snapshot feed (safe first POC).** Riil already has `data/market-rates.json` and `data/market-snapshot.json`, with BI-Rate, available SBDK observations, JISDOR, inflation and other dated market references. Fin Engine can ingest **only allowed published fields** via a provider-specific `riil_market_snapshot_v1` adapter while preserving the **original publisher, source URL, as-of date, unit, caveat, and Riil's editorial status**. Riil is the source of the compiled artifact, not automatically the original publisher of its figures. Respect original source licensing before storing/redistributing outside Riil.
+2. **Aggregate product-usage feed (optional and governance-gated).** Riil's event/calc infrastructure provides a possible source of aggregate activity signals such as daily counts per tool. This is strategically valuable to Fin Engine's later research/market-intelligence work, but no real usage data is transferred until authorization, product disclosure, data-minimization, privacy review, suppression, retention and security requirements are met. **Never send raw input values, per-session histories, rare combinations, user identifiers or account data as a shortcut.**
+
+A read-only Fin Engine prototype may initially fetch Riil's *public* published JSON artifacts; that is a technical convenience, not shared runtime dependency. A formal Riil-owned export job/adapter should be introduced only when the first contract and ownership are approved. Do not change Riil production or its workflow during Fin Engine-only prototyping.
+
+### 4.2 Producer/consumer contract: Riil outbound
+
+**Proposed contract for public market data** (`riil.market_snapshot.v1`), independent of Riil's internal JSON layout:
 
 ```json
 {
   "schema_version": "1.0",
-  "indicator": "bi_rate",
-  "value": 5.75,
-  "unit": "percent_per_year",
-  "as_of": "YYYY-MM-DD",
-  "published_at": "YYYY-MM-DD",
-  "fetched_at": "YYYY-MM-DDTHH:mm:ssZ",
-  "source": {
-    "publisher": "Bank Indonesia",
-    "url": "https://www.bi.go.id/id/statistik/indikator/BI-Rate.aspx"
-  },
-  "status": "verified",
-  "caveat": "Policy rate; not a retail loan offer"
+  "producer": "riil",
+  "dataset": "riil.market_snapshot",
+  "exported_at": "YYYY-MM-DDTHH:mm:ssZ",
+  "records": [
+    {
+      "indicator": "bi_rate",
+      "value": 5.75,
+      "unit": "percent_per_year",
+      "as_of": "YYYY-MM-DD",
+      "original_publisher": "Bank Indonesia",
+      "source_url": "https://www.bi.go.id/id/statistik/indikator/BI-Rate.aspx",
+      "caveat": "Policy rate; not a retail credit offer"
+    }
+  ]
 }
 ```
 
-**All values and dates in this example are illustrative of the schema, not a current API response.**
+The values above are a **contract illustration**, not a freshly verified market observation. The adapter must carry the publication's actual dates and caveats. A *separate schema* is required for any approved aggregate behavior feed: at minimum measurement window, metric name, population definition, aggregate count, applied suppression policy and export version. Never blend behavior data with public financial statistics just because both originate at Riil.
 
-Compatibility rules: UTC timestamps; ISO dates for source as-of and publication; explicit unit and semantic definition; source URL; `verified/stale/unavailable` status; no silent substitutions; versioned breaking changes; JSON Schema/OpenAPI plus contract tests in both repositories; ETag/cache policy; bounded API response time; rate limits/auth where warranted. Failed ingestion must preserve the previous validated observation and report freshness separately.
+### 4.3 Transfer and operational rules
 
-Riil's consumer-specific adapter **maps** the generic response into its current `data/market-rates.json` and, later, `data/market-snapshot.json` shape. This adapter belongs to Riil. Fin Engine must never write directly to Riil's GitHub repository or import Riil's UI code.
+- Prefer an **asynchronous artifact/feed handoff**: Riil produces a versioned signed JSON/JSONL export or approved read-only snapshot, Fin Engine independently pulls/imports it on its own schedule. Alternatively, an authenticated push to a Fin Engine ingestion endpoint is fine **only if it runs as a retryable background job, not on the calculator or page-request critical path**.
+- Riil **never needs Fin Engine to accept an export** to complete its own page build, CMS save or calculator result. Fin Engine does not need Riil for its native provider ingest or B2B API.
+- Authenticate private feeds using server-side credentials/short-lived signing; no secrets in browser bundles, public JSON, build logs or commit messages. Apply scoped permissions.
+- Import pipeline checks contract schema, source authorization, allowed fields, units, time semantics, counts, duplicates, checksum and idempotency key; rejects malformed or partial batches into quarantine and preserves the last valid snapshot.
+- Keep Riil's identifiers internal. Fin Engine stores separate `source_key=riil_*` provenance and must distinguish curated/reported figures from independently retrieved/verified figures.
+- Track feed status (last successful transfer, age, count, rejected count) separately in each product. Outages and retries must not produce duplicates or silently change an indicator's meaning.
 
-## 6. Phased reconciled roadmap
+**Phase 1 acceptance:** Fin Engine imports at least one validated Riil-origin dataset; both applications build/run/deploy independently with the connection disabled; no direct database access or user-data leakage; replaying a batch changes no results; integration failure causes no user-facing Riil outage.
 
-### Gate 0 — Baseline and independent stability
+## 5. Later phases: Fin Engine can feed back through an adapter
 
-**Fin Engine:** finalize existing feature branch, migrate no production data without migration approval, TypeScript API/dashboard build + Python/tooling tests in CI, document deployment status accurately, and back up/check Neon. Keep synthetic marketplace listings labeled. Verify the BPS production snapshot is complete, not only that 39 rows exist.
+Fin Engine may increasingly become an independent provider of economic indicators and qualified market intelligence. Riil consumes **only an explicitly selected set** via a **Riil-owned inbound adapter**:
 
-**Riil:** preserve `main` deployment and the calculator-engine golden tests; document current `fetch-rates.py` output and `MARKET`-block synchronization; document snapshot build, CMS edit path, editorial validation and read-only integration contract.
+```text
+Fin Engine Fastify /v1/* API (generic semantics and provenance)
+    -> Riil inbound adapter (authentication, mapping, validation, editorial policy)
+    -> last-known-good snapshot / feature-flagged cache
+    -> Riil's existing `data/market-rates.json` or `data/market-snapshot.json` workflow
+    -> Riil build-articles / build-dampak / MARKET block
+    -> normal Riil static pages
+```
 
-**Done when:** both repos build independently; existing Riil numeric reference cases pass; no other repo needed to start or deploy either system.
+The API remains **product-neutral**: no Riil-specific field names or UI strings in Fin Engine. The adapter translates to Riil's schemas, enforces publication/quality gates, and preserves manual editorial overrides. Data comes into Riil at build time or through a cached Cloudflare Function only when a clear feature requires dynamic access. Browser-side calculators retain their deterministic arithmetic and safe local defaults.
 
-### Gate 1 — BI-Rate as first shared financial indicator
+**Reverse-flow acceptance:** disabling the inbound adapter or losing Fin Engine connectivity leaves Riil operational with a timestamped last-known-good snapshot; Fin Engine's releases don't silently change consumer calculations; each repository's contract tests catch breaking changes.
 
-**Fin Engine:** add macroeconomics domain/source adapter for official BI-Rate, append-only indicator observations, quality checks (value, date, source, detection of revisions), one stable Fastify endpoint with explicit provenance and tests, and a scheduled refresh mechanism.
+## 6. Modular Fin Engine design
 
-**Riil:** keep `fetch-rates.py` and weekly workflow as the active producer while shadow-reading Fin Engine into a separately named comparison artifact. Compare rate, date, source and freshness over at least two successful updates or relevant publication changes. Avoid replacing `MARKET` with an unverified snapshot.
+Keep the existing Python analysis + Fastify API + Next.js dashboard as an independent, modular monolith for now; introduce bounded submodules before splitting services:
 
-**Done when:** verified values agree within 0.01 percentage point for the same official publication, stale/failure behavior is tested, and rollback to the original rates producer is one configuration change.
+```text
+apps/analysis/riil_analysis/         existing modules (incrementally evolve)
+  integrations/
+    riil/
+      import_market_snapshot.py      PROPOSED, not implemented
+      import_aggregates.py           OPTIONAL after governance approval
+  domains/
+    automotive/                      existing code migrated gradually
+    macroeconomics/                  new, independent first shared domain
+  core/
+    ingestion/
+    quality/
+    provenance/
+    observations/
+apps/api/src/                        generic versioned public endpoints
+apps/dashboard/                      Fin Engine-only business presentation
+contracts/
+  inbound/riil-market-snapshot.v1.json
+  outbound/indicator-latest.v1.json
+```
 
-### Gate 2 — Controlled Riil rates handoff
+These paths are **proposed**, not claims about current files. No mass rename of `riil_analysis` until necessary. Shared ingestion primitives should define a stable interface; specific domains own the actual semantics. Vehicle tables are not a substitute for generic indicator observations. A third-party customer should be able to use Fin Engine without access to Riil.
 
-**Fin Engine:** publish stable read-only versioned indicator responses with deployment monitoring and last-known-good semantics.
+## 7. Reconciled development phases and release gates
 
-**Riil:** change only the rate-fetch adapter to consume Fin Engine for **BI-Rate**, while retaining present `assets/riil.js` MARKET generation and calculator behavior. Do not move SBDK yet: the current Riil sample is one verified bank and explicitly **not a market lending-rate average**. Preserve that coverage note and Bank-specific provenance.
+| Gate | Riil independently | Fin Engine independently | Exchange / release gate |
+| --- | --- | --- | --- |
+| **0. Baselines** | Preserve existing site, D1, calculator reference tests, scheduled rates, article builds | Finalize feature branch, test API/dashboard + Python, verify Neon data and migrations | Both can build/run/deploy with integration turned **off** |
+| **1A. Riil → FE: published data** | No change required initially; maintain existing public market JSON, dates and caveats | Build Riil inbound provider adapter + staged validated ingest and provenance | Fin Engine can ingest a Riil-published dataset with no Riil deployment dependency |
+| **1B. Riil → FE: aggregate usage (optional)** | Decide lawful basis, disclosures, aggregation/suppression, data export rules and ownership; implement scheduled exporter only if approved | Separate aggregate contract, access controls and limited analytical storage | Approved aggregate feed only; **no raw calculator records** |
+| **2. FE independent domains** | Keep current rate and Dampak workflows; no dependence on FE | Build native BI-Rate/JISDOR/BPS indicators from original authoritative sources and generic API | FE works without any Riil feed and independently verifies its outputs |
+| **3. FE → Riil: shadow mode** | Add read-only inbound adapter after owner approval; compare FE values against existing workflow without publishing | Expose versioned, source-backed read-only responses | Match semantics, publication dates and accuracy; rollback verified |
+| **4. FE → Riil: optional cutover** | Activate selected adapter feed, retain editorial override and last-known-good snapshots | Provide monitored API and freshness status | Riil can disable adapter without calculator, article or deployment failure |
+| **5. Expand services** | Optional automotive context panels and other source-backed consumer features | Automotive/macro modules, audited B2B APIs, independent commercial deployment | No conflation of NJKB, market asks, auction limits or transaction prices |
 
-**Done when:** Riil can deploy and display last validated values if Fin Engine is down, existing rate disclosure language stays accurate, and no new user data is transmitted.
+There is **no obligation** to enable Gate 1B or the reverse feed before Fin Engine can progress with its own roadmap.
 
-### Gate 3 — Broaden macro / Dampak market context
+### Prioritization rationale
 
-Prioritize **JISDOR USD/IDR**, then **BPS inflation**, then carefully assessed **gold/commodity, fuel and IHSG** feeds depending on licensing, quality and publication cadence. Add each Fin Engine adapter separately with source-specific schema, time semantics, data provenance, revisions and freshness checks. No scraping around WAFs or access controls.
+The first technical data exchange should start with Riil's **already-public market snapshots**: their structure, provenance and known caveats can be checked without moving personal data or rebuilding the Riil site. After a successful ingest, consider a separately governed aggregate insight product. Only later should Fin Engine become Riil's chosen data provider for specific indicators. This respects the desired order of data flow while minimizing coupling.
 
-Riil keeps the CMS `data/market-snapshot.json` as an editorial gate. Introduce a reviewed import from Fin Engine rather than overwriting manually curated or disputed values. `build-dampak.py` stays the canonical static asset publisher and validates exactly as before.
+## 8. Privacy, commercial and data-integrity gates
 
-**Done when:** at least two independently validated indicators work from Fin Engine through Riil's existing static build, with clear staleness and a manual override.
+- Riil and Fin Engine are separate systems even if their teams cooperate. Only the minimal approved field set crosses the boundary. Data sharing is not automatically permitted just because the same people developed both systems.
+- Riil's privacy and account policies apply at collection. Update disclosures and evaluate applicable consent/lawful bases **before** enabling any usage-derived export or commercial redistribution. Financial behavior may remain sensitive in small groups. Never rely on stripping email alone as proof of anonymity.
+- Do not send or store identifiers, raw calculator input payloads, contact details, per-user histories, session timestamps, or salary/debt combinations by default.
+- Aggregate-feed safeguards should include defined cohort and metric dictionaries, minimum reporting thresholds, suppression for small groups, retention limits, role-based access, export audits, and no ability to query individual records.
+- Distinguish **original source observations**, **Riil-curated summaries**, **Fin Engine calculations**, **synthetic demonstrations**, and **aggregate usage statistics**. Preserve origin and limitations in APIs and dashboards.
+- BI-Rate is not a retail loan offer; Riil's SBDK sample currently represents a thin set of published bank floors, not an offered-market average. NJKB is not a retail selling price; asking listings are not realized transactions; auction limits are not final auction prices.
+- Review publication/source licensing independently of data sensitivity. An item being publicly visible in Riil does not grant automatic commercial redistribution rights.
 
-### Gate 4 — Automotive crossover, without calculator migration
+## 9. Integration governance and next implementation tickets
 
-Offer optional published **vehicle market context** from Fin Engine (official NJKB tax/reference, regional BPS vehicle stocks, carefully qualified asking prices and auction limits). Pilot one opt-in Riil vehicle-page contextual panel or corresponding article facts without touching loan repayment math.
+1. **Contract-first:** define a `riil.market_snapshot.v1` JSON Schema, sample fixtures and import validation tests in Fin Engine. Riil's current public artifact is the fixture; do not change Riil yet.
+2. **Read-only Phase 1 importer:** create a source adapter in Fin Engine to ingest approved published Riil market snapshots, preserve original source provenance, and upsert/deduplicate according to stable observation identity. Run a dry-run preview, then persist to a **separate** indicator schema rather than vehicle tables.
+3. **Prove independence:** exercise both projects with the adapter disabled, malformed feed, stale feed, and duplicated feed; add CI checks and an explicit compatibility/error report.
+4. **Privacy/product gate for Phase 1B:** separately document any proposal to aggregate Riil's tracker data, including user disclosures and controls; do not export real behavior data without approval.
+5. **Native data domain, then return path:** add independently sourced BI-Rate and other macro observations to Fin Engine, publish generic versioned APIs, then seek Riil-owner approval for a shadow inbound adapter and optional cutover.
 
-Do not equate NJKB with market sale value, listing price with verified transaction value, or auction limit with realized auction price. Synthetic listing data must never be presented as observed market evidence. An independent, tested Fin Engine API should expose sources, count, observed dates, geographic coverage and limitations.
-
-**Done when:** vehicle context is source-backed, has a clear separation from calculator results, fails safely, and can be removed without breaking Riil.
-
-### Gate 5 — Fin Engine as an independent data product
-
-Harden public API keys/auth, usage controls, audit logs, quotas, availability, observability, rate-limited ingestion, retries, source terms/licensing and customer contracts. Mature the B2B dashboard and domain analytics. Only then consider extracting high-load ingestion workers or other domains into separately deployed services.
-
-**Done when:** a third-party consumer can use Fin Engine without knowing Riil exists, and Riil continues to release independently.
-
-## 7. Analytics, privacy and commercial boundary
-
-Riil presently collects event counts and some completed calculation values into Cloudflare D1 while consumer calculation logic runs in the browser. Although Riil's tracker aims to avoid direct identifiers, small or unusual combinations of financial figures may still be privacy-sensitive. The repo's privacy promises, user disclosure/consent and applicable obligations govern any future usage.
-
-**Default:** keep all Riil event, account and saved-calculation records in Riil/D1. Do **not** mirror raw calculator inputs, salary/debt amounts, email/account IDs, tracker events or per-person histories into Fin Engine/Neon.
-
-Any future Fin Engine product based on aggregates of Riil usage requires a separate explicit product decision, lawful basis and updated disclosures before transfer or commercialization; privacy/security review, thresholding and suppression for small cohorts, retention/access controls, and a documented opt-out/deletion strategy. Do not infer that "anonymous by design" means unconditional permission to sell or share.
-
-## 8. Branches, integration and rollout discipline
-
-- Riil remains read-only from this Fin Engine workstream. Any future Riil modification requires repo-owner approval and a separate Riil PR.
-- Fin Engine changes stay in feature branches with CI; do not couple the release of the two repositories. For API changes: schema and examples first, then tests, then producer deployment, then shadow consumer, then cutover.
-- Consumer snapshot failures must leave the last-good Riil data and its as-of date intact. No auto-commit directly from Fin Engine to Riil, and no secret tokens in static assets, build logs or URLs.
-- No synchronous call to Fin Engine for private Riil user input in the first integration. Avoid direct browser CORS connections; if a dynamic product later requires calls, use a Cloudflare Function server-side proxy with explicit auth, quotas, caching, timeouts and data-minimization rules.
-- API or data-model migrations must support existing consumers through a deprecation window; keep contract fixtures in both repositories.
-
-## 9. The next four implementation tickets
-
-1. **Fin Engine CI + baseline:** complete TypeScript build/typecheck checks; run and document existing Python/tooling jobs; close branch readiness issues.
-2. **Fin Engine macro domain:** design an indicator schema, database migration, official BI-Rate adapter and a stable `/v1/indicators/bi_rate/latest` endpoint, with source/temporal contract tests.
-3. **Non-mutating Riil compatibility fixture:** add a contract fixture in Fin Engine that reproduces the **public, non-sensitive** fields currently needed by Riil's MARKET block. Do not modify the Riil repository yet.
-4. **Riil PR only after approval:** add a shadow-mode, read-only adapter in Riil's rate refresh workflow, compare with `fetch-rates.py`, and document rollback; keep both brands independently deployable.
-
-## 10. Decisions and anti-goals
-
-- **Decision:** API boundary, not a merged repo, shared database, cross-repo package import or microservice explosion.
-- **Decision:** use Fin Engine's existing Fastify as the public contract and Python as the internal analytics engine.
-- **Decision:** Riil's calculations remain transparent, client-side and user-controlled.
-- **Decision:** market data sourced in Fin Engine may power Riil, but Riil always controls editorial framing and publication.
-- **Do not prioritize:** migrating all Riil pages to Next.js; moving Riil accounts, CMS or D1 to Neon; rewriting all calculators in Python; replacing all source adapters simultaneously; implementing B2B behavioral monetization before a privacy/consent review.
-
-This is a roadmap alignment document. No Riil files, deployment settings, credentials or databases have been changed by writing it.
+**Change policy:** This document lives only in Fin Engine. Riil (`abagusdp/riil`) remains read-only; any future Riil code change needs separate approval and pull request. This update does not implement or activate transfers and makes no production database changes.
