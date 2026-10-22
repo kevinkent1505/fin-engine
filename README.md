@@ -6,6 +6,8 @@ Fin Engine turns vehicle-market and official reference data into traceable analy
 
 For a non-technical explanation of the product, target customers, use cases, data signals, limitations, commercial options and roadmap, see the [Business Overview](./docs/BUSINESS.md).
 
+For the cross-repository plan with Riil, see [Riil + Fin Engine Integration Roadmap](./docs/RIIL_INTEGRATION_ROADMAP.md). **Fin Engine remains a separate, independently deployable and modular data/analysis platform**; Riil consumes stable contracts without sharing application code or databases.
+
 ## Current status
 
 Implemented:
