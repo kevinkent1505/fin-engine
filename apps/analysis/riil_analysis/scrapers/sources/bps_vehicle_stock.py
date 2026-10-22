@@ -387,7 +387,7 @@ class BpsVehicleStockAdapter:
             self._validate_live_snapshot(direct_records, direct_payload)
             return direct_records
         except (ValueError, httpx.HTTPError) as direct_error:
-            if self._remote_csv_export:
+            if os.getenv("BPS_VEHICLE_STOCK_CSV_URL", "").strip():
                 raise RuntimeError(
                     "Official BPS CSV export failed validation; no incomplete "
                     "data were saved. Check source year, province coverage "
